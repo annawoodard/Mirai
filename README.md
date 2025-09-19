@@ -81,7 +81,7 @@ python scripts/dispatcher.py --experiment_config_path configs/validate_mirai.jso
 What you need to validate the model:
 - Install the dependencies (see above)
 - Get access to the snapshot files (in snapshots folder of docker container)
-- Convert your dicoms to PNGs (see above)
+- Convert your dicoms to PNGs (see above), **or** supply a CSV whose `file_path` points to a Zarr cache (see below)
 - Create a CSV file describing your dataset. For an example, see `demo/sample_metadata.csv`. We note that all the columns are required.
     - `patient_id`: ID string for this patient. Is used to link together mammograms for one patient.
     - `exam_id`: ID string for this mammogram. Is used to link together several files for one mammogram. Note, this code-base assumes that "patient_id + exam_id" is the unique key for a mammogram.
@@ -91,6 +91,15 @@ What you need to validate the model:
     - `years_to_cancer`: Integer the number of years from this mammogram that the patient was diagnosed with breast cancer. If the patient doesn't develop cancer during the observed data, enter 100. If the cancer was found on this mammogram, enter 0.
     - `years_to_last_followup`: Integer reflecting how many years from the mammogram we know the patient is cancer free. For example, if a patient had a negative mammogram in 2010 (and this row corresponds to that mammogram), and we have negative followup until 2020, then enter 10.
     - `split_group`: Can take values `train`, `dev` or `test` to note the training, validation and testing samples.
+
+**Zarr-backed file paths (optional)**  
+In addition to PNG16 paths, the CSV `file_path` may contain URIs of the form:
+
+```
+zarr:///abs/path/to/<StudyInstanceUID>.zarr#L_CC
+```
+
+When present, the loader will read a uint16 2D array from the Zarr group (keyed by one of `L_CC,L_MLO,R_CC,R_MLO`) and wrap it as a 16-bit PIL image. Normalization (`--img_mean 7047.99 --img_std 12005.5`) and sizing (`--img_size 1664 2048`) continue to be applied by the existing transforms, per README. 
 
 Before running `validate.sh`, make sure to replace `demo/sample_metadata.csv` with the path to your metadata path and to replace `demo/validation_output.csv` to wherever you want predictions will be saved.
 

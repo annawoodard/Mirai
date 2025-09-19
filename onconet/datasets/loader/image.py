@@ -1,23 +1,31 @@
-import torch
-import torchvision
-from PIL import Image, ImageFile
 import os
-import sys
 import os.path
+import sys
 import warnings
-from onconet.utils.generic import md5
+
+import torch
+from PIL import Image, ImageFile
+
 from onconet.transformers.basic import ComposeTrans
+from onconet.utils.generic import md5
+
+try:
+    from onconet.utils.zarr_image_loader import open_image_mono16_any as _open_image_any
+except Exception:
+    _open_image_any = None  # optional; fallback to Image.open when zarr not installed
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
-CACHED_FILES_EXT = '.png'
-DEFAULT_CACHE_DIR = 'default/'
+CACHED_FILES_EXT = ".png"
+DEFAULT_CACHE_DIR = "default/"
 
-CORUPTED_FILE_ERR = 'WARNING! Error processing file from cache - removed file from cache. Error: {}'
+CORUPTED_FILE_ERR = (
+    "WARNING! Error processing file from cache - removed file from cache. Error: {}"
+)
 
 
 def split_transformers_by_cache(transformers):
-    '''
+    """
     Given a list of transformers, returns a list of tuples. Each tuple
     contains a caching key of the transformers up to the spiltting point,
     and a list of transformers that should be applied afterwards.
@@ -28,38 +36,34 @@ def split_transformers_by_cache(transformers):
 
     Note - splitting will be done for indexes that all transformers up to them are
     cachable.
-    '''
+    """
     # list of (cache key, post transformers)
     split_transformers = []
     split_transformers.append((DEFAULT_CACHE_DIR, transformers))
     all_prev_cachable = True
-    key = ''
+    key = ""
     for ind, trans in enumerate(transformers):
-
         # check trans.cachable() first separately to save run time
         if not all_prev_cachable or not trans.cachable():
             all_prev_cachable = False
         else:
             key += trans.caching_keys()
-            post_transformers = transformers[
-                ind + 1:] if ind < len(transformers) else []
+            post_transformers = (
+                transformers[ind + 1 :] if ind < len(transformers) else []
+            )
             split_transformers.append((key, post_transformers))
 
     return list(reversed(split_transformers))
 
 
-def apply_transformers_and_cache(image,
-                                 additional,
-                                 img_path,
-                                 transformers,
-                                 cache,
-                                 cache_full_size=False,
-                                 base_key=''):
-    '''
+def apply_transformers_and_cache(
+    image, additional, img_path, transformers, cache, cache_full_size=False, base_key=""
+):
+    """
     Loads the image by its absolute path and apply the transformers one
     by one (similar to what the composed one is doing).  All first cachable
     transformer's output is cached (until reaching a non cachable one).
-    '''
+    """
     if cache_full_size:
         cache.add(img_path, DEFAULT_CACHE_DIR, image)
 
@@ -76,7 +80,7 @@ def apply_transformers_and_cache(image,
     return image
 
 
-class cache():
+class cache:
     def __init__(self, path, extension=CACHED_FILES_EXT):
         if not os.path.exists(path):
             os.makedirs(path)
@@ -88,8 +92,7 @@ class cache():
         return os.path.join(self.cache_dir, attr_key)
 
     def _file_path(self, attr_key, hashed_key):
-        return os.path.join(self.cache_dir, attr_key, hashed_key +
-                                   self.files_extension)
+        return os.path.join(self.cache_dir, attr_key, hashed_key + self.files_extension)
 
     def exists(self, image_path, attr_key):
         hashed_key = md5(image_path)
@@ -116,7 +119,7 @@ class cache():
             pass
 
 
-class image_loader():
+class image_loader:
     def __init__(self, cache_path, transformers):
         self.transformers = transformers
 
@@ -129,13 +132,19 @@ class image_loader():
             self.composed_all_transformers = ComposeTrans(transformers)
 
     def get_image(self, path, additional):
-        '''
+        """
         Returns a transformed image by its absolute path.
         If cache is used - transformed image will be loaded if available,
         and saved to cache if not.
-        '''
+        """
         if not self.use_cache:
-            image = Image.open(path)
+            # accept zarr:// uris; otherwise fall back to PNG16 loader
+            if _open_image_any is not None:
+                image = _open_image_any(path)
+            else:
+                # zarr not installed -> maintain original behavior
+                # (if file_path is zarr:// and zarr is missing, this will raise loud)
+                image = Image.open(path)
             return self.composed_all_transformers(image, additional)
 
         for key, post_transformers in self.split_transformers:
@@ -149,29 +158,39 @@ class image_loader():
                         post_transformers,
                         self.cache,
                         cache_full_size=False,
-                        base_key=key)
+                        base_key=key,
+                    )
                     return image
                 except:
                     hashed_key = md5(path)
                     corrupted_file = self.cache._file_path(key, hashed_key)
-                    warnings.warn(CORUPTED_FILE_ERR.format(
-                                                   sys.exc_info()[0]))
+                    warnings.warn(CORUPTED_FILE_ERR.format(sys.exc_info()[0]))
                     self.cache.rem(path, key)
 
         all_transformers = self.split_transformers[-1][1]
-        image = Image.open(path)
-        image = apply_transformers_and_cache(image, additional, path, all_transformers,
-                                             self.cache)
+        # accept zarr:// uris; otherwise fall back to PNG16 loader
+        if _open_image_any is not None:
+            image = _open_image_any(path)
+        else:
+            # zarr not installed -> maintain original behavior
+            # (if file_path is zarr:// and zarr is missing, this will raise loud)
+            image = Image.open(path)
+        image = apply_transformers_and_cache(
+            image, additional, path, all_transformers, self.cache
+        )
         return image
 
     def get_images(self, paths, additionals):
-        '''
+        """
         Returns a stack of transformed images by their absolute paths.
         If cache is used - transformed images will be loaded if available,
         and saved to cache if not.
-        '''
+        """
         additionals += [None] * (len(paths) - len(additionals))
-        images = [self.get_image(path, additional) for path, additional in zip(paths, additionals)]
+        images = [
+            self.get_image(path, additional)
+            for path, additional in zip(paths, additionals)
+        ]
         images = torch.stack(images)
 
         # Convert from (T, C, H, W) to (C, T, H, W)
