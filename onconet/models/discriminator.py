@@ -4,16 +4,19 @@ from onconet.datasets.abstract_onco_dataset import DEVICE_TO_ID
 
 NUM_DEVICES = len(set(DEVICE_TO_ID.values()))
 
-@RegisterModel('cross_ent_discriminator')
+
+@RegisterModel("cross_ent_discriminator")
 class Discriminator(nn.Module):
-    '''
-        Simple MLP discriminator
-    '''
+    """
+    Simple MLP discriminator
+    """
 
     def __init__(self, args):
         super(Discriminator, self).__init__()
         self.args = args
-        num_logits = args.num_classes if not args.survival_analysis_setup else args.max_followup
+        num_logits = (
+            args.num_classes if not args.survival_analysis_setup else args.max_followup
+        )
         if self.args.adv_on_logits_alone:
             self.fc1 = nn.Linear(num_logits, NUM_DEVICES)
         else:
@@ -28,12 +31,11 @@ class Discriminator(nn.Module):
             self.fc3 = nn.Linear(hidden_dim, NUM_DEVICES)
             self.relu = nn.ReLU()
 
-
     def forward(self, x):
         if self.args.adv_on_logits_alone:
             return self.fc1(x)
         else:
-            hidden = self.relu( self.bn1( self.fc1(x) ))
-            hidden = self.relu( self.bn2( self.fc2(hidden) ))
-            z = self.fc3( hidden)
+            hidden = self.relu(self.bn1(self.fc1(x)))
+            hidden = self.relu(self.bn2(self.fc2(hidden)))
+            z = self.fc3(hidden)
             return z

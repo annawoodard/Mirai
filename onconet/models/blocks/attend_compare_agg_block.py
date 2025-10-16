@@ -4,17 +4,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 from onconet.models.group_norm import GroupNorm
 from onconet.models.blocks.factory import RegisterBlock
-import pdb
 
-UNEXPECTED_INPUT_SIZE_ERR = "Unexpected input size! Expected a 5D tensor, instead got size {}"
+UNEXPECTED_INPUT_SIZE_ERR = (
+    "Unexpected input size! Expected a 5D tensor, instead got size {}"
+)
 
-@RegisterBlock('ACABlock')
+
+@RegisterBlock("ACABlock")
 class AttendCompareAggregateBlock(nn.Module):
     """Attend Compare Aggregate block."""
+
     expansion = 1
 
-    def __init__(self, args, inplanes, planes, stride=1, downsample=None,
-                 compression_factor=2):
+    def __init__(
+        self, args, inplanes, planes, stride=1, downsample=None, compression_factor=2
+    ):
         """Initializes the ACABlock.
 
         Arguments:
@@ -31,7 +35,9 @@ class AttendCompareAggregateBlock(nn.Module):
         self.num_images = args.num_images
         self.attend_module = AttendModule(args, inplanes, compression_factor)
         self.compare_module = CompareModule(args, inplanes, self.num_images)
-        self.aggregate_module = AggregateModule(args, inplanes, inplanes, self.num_images)
+        self.aggregate_module = AggregateModule(
+            args, inplanes, inplanes, self.num_images
+        )
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
 
@@ -47,7 +53,11 @@ class AttendCompareAggregateBlock(nn.Module):
 
         # Save residual
         if self.compression_factor > 1:
-            x = F.max_pool3d(x, kernel_size=(1,3,3), stride=(1,self.compression_factor,self.compression_factor))
+            x = F.max_pool3d(
+                x,
+                kernel_size=(1, 3, 3),
+                stride=(1, self.compression_factor, self.compression_factor),
+            )
 
         residual = x
 
@@ -55,7 +65,7 @@ class AttendCompareAggregateBlock(nn.Module):
         C = self.compare_module(R, V)
         Z = self.aggregate_module(R, V, C)
 
-        out = x+Z
+        out = x + Z
         out = self.relu(out)
 
         if self.downsample is not None:
@@ -66,29 +76,17 @@ class AttendCompareAggregateBlock(nn.Module):
 
 class AttendModule(nn.Module):
     """
-        Attend step of ACA. For each pixel each frame, get a attention distribution over all other frames. i.e starting from a T, H, W volume,
-        produce an attention map of of T, T, H, W.
+    Attend step of ACA. For each pixel each frame, get a attention distribution over all other frames. i.e starting from a T, H, W volume,
+    produce an attention map of of T, T, H, W.
 
     """
 
     def __init__(self, args, inplanes, compression_factor=2):
-
-
         super(AttendModule, self).__init__()
 
-        self.query_conv = nn.Conv3d(inplanes,
-                                    inplanes // 2,
-                                    kernel_size=1,
-                                    bias=False)
-        self.memory_conv = nn.Conv3d(inplanes,
-                                  inplanes // 2,
-                                  kernel_size=1,
-                                  bias=False)
-        self.value_conv = nn.Conv3d(inplanes,
-                                inplanes // 2,
-                                kernel_size=1,
-                                bias=False)
-
+        self.query_conv = nn.Conv3d(inplanes, inplanes // 2, kernel_size=1, bias=False)
+        self.memory_conv = nn.Conv3d(inplanes, inplanes // 2, kernel_size=1, bias=False)
+        self.value_conv = nn.Conv3d(inplanes, inplanes // 2, kernel_size=1, bias=False)
 
     def forward(self, x):
         """Computes a attention step of ACA block.
@@ -103,72 +101,69 @@ class AttendModule(nn.Module):
 
         dims = x.size()
 
-
         if len(dims) == 5:
             batch_size, inplanes, time, height, width = dims
         else:
             raise Exception(UNEXPECTED_INPUT_SIZE_ERR.format(dims))
-
 
         # Compute Q, M, V all of size (B, C/2, T, H, W)
         Q = self.query_conv(x)
         M = self.memory_conv(x)
         V = self.value_conv(x)
 
-        V_i = V # Save copy of V in shape (B, C/2, T, H, W)
+        V_i = V  # Save copy of V in shape (B, C/2, T, H, W)
 
         # Reshape Q, M to (B, C/2, THW)
-        Q = Q.view(batch_size, inplanes//2, -1)
-        M = M.view(batch_size, inplanes//2, -1)
+        Q = Q.view(batch_size, inplanes // 2, -1)
+        M = M.view(batch_size, inplanes // 2, -1)
         # Reshape Q to (B, TWH, C/2)
-        Q = torch.transpose(Q, 1,2)
+        Q = torch.transpose(Q, 1, 2)
 
         # Reshape V to (BT, HW, C/2)
-        V = torch.transpose(V, 1, 2) #( B, T, C/2, H, W)
-        V = V.contiguous().view(batch_size * time, inplanes//2, height * width)
+        V = torch.transpose(V, 1, 2)  # ( B, T, C/2, H, W)
+        V = V.contiguous().view(batch_size * time, inplanes // 2, height * width)
         V = torch.transpose(V, 1, 2)
 
         # Compute attention, shape is (B, THW, THW)
         # Scaling by sqrt(dim) is inspired by https://arxiv.org/pdf/1706.03762.pdf
         A = torch.bmm(Q, M) / np.sqrt(inplanes // 2)
         # Reshape A (B, THW, THW) to (BT, THW, HW)
-        A = A.contiguous().view(batch_size, -1, time, height*width) #( B, TWH, T, HW)
-        A = torch.transpose(A, 1, 2) #( B, T, TWH, HW)
-        A = A.contiguous().view( batch_size * time, -1, height*width)
-        A = F.softmax( A, dim=-1)
+        A = A.contiguous().view(
+            batch_size, -1, time, height * width
+        )  # ( B, TWH, T, HW)
+        A = torch.transpose(A, 1, 2)  # ( B, T, TWH, HW)
+        A = A.contiguous().view(batch_size * time, -1, height * width)
+        A = F.softmax(A, dim=-1)
 
         # Compute R = A * V, output of shape (BT, THW, C/2)
         R = torch.bmm(A, V)
 
         # Reshape R to (B, C/2, T, T, H, W)
-        R = R.view( batch_size, time, time, height, width, inplanes //2)
+        R = R.view(batch_size, time, time, height, width, inplanes // 2)
         R = R.permute(0, 5, 1, 2, 3, 4)
         return R, V_i
 
+
 class CompareModule(nn.Module):
     """
-        Compare step of ACA. Given a feature vec Vi, compare it in the
-        style of NLI to all corresponding attended vectors in R.
+    Compare step of ACA. Given a feature vec Vi, compare it in the
+    style of NLI to all corresponding attended vectors in R.
     """
+
     def __init__(self, args, inplanes, num_images):
-
-
         super(CompareModule, self).__init__()
 
-        self.cat_conv = nn.Conv3d(inplanes,
-                                inplanes // (num_images * 3),
-                                kernel_size=1,
-                                bias=False)
+        self.cat_conv = nn.Conv3d(
+            inplanes, inplanes // (num_images * 3), kernel_size=1, bias=False
+        )
 
-        self.sub_conv = nn.Conv3d(inplanes // 2,
-                                inplanes // (num_images * 3),
-                                kernel_size=1,
-                                bias=False)
+        self.sub_conv = nn.Conv3d(
+            inplanes // 2, inplanes // (num_images * 3), kernel_size=1, bias=False
+        )
 
-        self.mul_conv = nn.Conv3d(inplanes // 2,
-                                inplanes // (num_images * 3),
-                                kernel_size=1,
-                                bias=False)
+        self.mul_conv = nn.Conv3d(
+            inplanes // 2, inplanes // (num_images * 3), kernel_size=1, bias=False
+        )
 
         Norm = GroupNorm if args.replace_bn_with_gn else nn.BatchNorm2d
         self.cat_bn = Norm(inplanes // (num_images * 3))
@@ -178,17 +173,17 @@ class CompareModule(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, R, V):
-        '''
-            For each pixel in V, compare to all attended time steps in R.
-            via fc(V-R), fc(V*R), fc(V;R)
+        """
+        For each pixel in V, compare to all attended time steps in R.
+        via fc(V-R), fc(V*R), fc(V;R)
 
-            args:
-            R: (B, C/2, T, T, H, W) tensor
-            V:  (B, C/2, T, H, W) tensor
+        args:
+        R: (B, C/2, T, T, H, W) tensor
+        V:  (B, C/2, T, H, W) tensor
 
-            returns:
-            C: (B, C', T, H, W, comparison features
-        '''
+        returns:
+        C: (B, C', T, H, W, comparison features
+        """
         dims = V.size()
 
         if len(dims) == 5:
@@ -198,10 +193,10 @@ class CompareModule(nn.Module):
 
         V_exp = V.unsqueeze(0)
         V_exp = V_exp.expand(time, batch_size, chan, time, height, width)
-        V_exp = V_exp.permute(1,2,3,0,4,5)
-        V_exp = V_exp.contiguous().view(batch_size, chan, time*time, height, width)
+        V_exp = V_exp.permute(1, 2, 3, 0, 4, 5)
+        V_exp = V_exp.contiguous().view(batch_size, chan, time * time, height, width)
 
-        R = R.contiguous().view(batch_size, chan, time*time, height, width)
+        R = R.contiguous().view(batch_size, chan, time * time, height, width)
 
         X_cat = torch.cat([R, V_exp], dim=1)
         X_sub = R - V_exp
@@ -221,48 +216,34 @@ class CompareModule(nn.Module):
 
 class AggregateModule(nn.Module):
     """
-        Aggregate step of ACA. Given input features, attended features,
-        and comparison features, compress down to a single space and model
-        cross channel dependecies.
+    Aggregate step of ACA. Given input features, attended features,
+    and comparison features, compress down to a single space and model
+    cross channel dependecies.
     """
+
     def __init__(self, args, inplanes, planes, num_images):
-
-
         super(AggregateModule, self).__init__()
-        c_dim = (inplanes // (num_images*3))*3*num_images
-        in_dim = inplanes  + c_dim
+        c_dim = (inplanes // (num_images * 3)) * 3 * num_images
+        in_dim = inplanes + c_dim
 
-        self.agg_conv = nn.Conv3d(in_dim,
-                                planes,
-                                kernel_size=1,
-                                bias=False)
+        self.agg_conv = nn.Conv3d(in_dim, planes, kernel_size=1, bias=False)
 
         Norm = GroupNorm if args.replace_bn_with_gn else nn.BatchNorm2d
         self.agg_bn = Norm(planes)
 
-
     def forward(self, R, V, C):
-        '''
-            Args:
-            R: (B, C/2, T, T, W, H),  attention features
-            V: Shape (B, C/2, T, W, H), input features
-            C: Shape (B, C', T, W, H), comparison features
+        """
+        Args:
+        R: (B, C/2, T, T, W, H),  attention features
+        V: Shape (B, C/2, T, W, H), input features
+        C: Shape (B, C', T, W, H), comparison features
 
-            returns,
-            Z: Shape (B, C, T, W, H), aggregated result
-        '''
+        returns,
+        Z: Shape (B, C, T, W, H), aggregated result
+        """
         R = torch.mean(R, dim=3)
 
-        Y = torch.cat([R,V,C], dim=1)
+        Y = torch.cat([R, V, C], dim=1)
 
         Z = self.agg_bn(self.agg_conv(Y))
         return Z
-
-
-
-
-
-
-
-
-

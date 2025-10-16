@@ -1,10 +1,9 @@
 import torch.nn as nn
 from onconet.models.blocks.factory import RegisterBlock
 from onconet.models.blocks.basic_block import conv3x3
-import pdb
 
 
-@RegisterBlock('PreactBasic')
+@RegisterBlock("PreactBasic")
 class PreactBasicBlock(nn.Module):
     """A wide basic block for Resnets, from "Wide Residual Networks"
 
@@ -35,7 +34,6 @@ class PreactBasicBlock(nn.Module):
         self.stride = stride
         self.dropout = nn.Dropout(p=args.dropout)
 
-
     def forward(self, x):
         """Computes a forward pass of the model.
 
@@ -61,4 +59,3 @@ class PreactBasicBlock(nn.Module):
         out += residual
 
         return out
-

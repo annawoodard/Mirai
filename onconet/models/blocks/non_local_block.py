@@ -6,15 +6,20 @@ import torch.nn.functional as F
 from onconet.models.group_norm import GroupNorm
 from onconet.models.blocks.factory import RegisterBlock
 
-UNEXPECTED_INPUT_SIZE_ERR = "Unexpected input size! Expected a 4D or 5D tensor, instead got size {}"
+UNEXPECTED_INPUT_SIZE_ERR = (
+    "Unexpected input size! Expected a 4D or 5D tensor, instead got size {}"
+)
 
-@RegisterBlock('NonLocalBlock')
+
+@RegisterBlock("NonLocalBlock")
 class NonLocalBlock(nn.Module):
     """An embedded gaussian non-local block."""
+
     expansion = 1
 
-    def __init__(self, args, inplanes, planes, stride=1, downsample=None,
-                 compression_factor=2):
+    def __init__(
+        self, args, inplanes, planes, stride=1, downsample=None, compression_factor=2
+    ):
         """Initializes the NonLocalBlock.
 
         Arguments:
@@ -27,23 +32,13 @@ class NonLocalBlock(nn.Module):
         """
 
         super(NonLocalBlock, self).__init__()
-        self.compression_factor = 1 if args.use_precomputed_hiddens else compression_factor
-        self.theta_conv = nn.Conv2d(inplanes,
-                                    inplanes // 2,
-                                    kernel_size=1,
-                                    bias=False)
-        self.phi_conv = nn.Conv2d(inplanes,
-                                  inplanes // 2,
-                                  kernel_size=1,
-                                  bias=False)
-        self.g_conv = nn.Conv2d(inplanes,
-                                inplanes // 2,
-                                kernel_size=1,
-                                bias=False)
-        self.y_conv = nn.Conv2d(inplanes // 2,
-                                inplanes,
-                                kernel_size=1,
-                                bias=False)
+        self.compression_factor = (
+            1 if args.use_precomputed_hiddens else compression_factor
+        )
+        self.theta_conv = nn.Conv2d(inplanes, inplanes // 2, kernel_size=1, bias=False)
+        self.phi_conv = nn.Conv2d(inplanes, inplanes // 2, kernel_size=1, bias=False)
+        self.g_conv = nn.Conv2d(inplanes, inplanes // 2, kernel_size=1, bias=False)
+        self.y_conv = nn.Conv2d(inplanes // 2, inplanes, kernel_size=1, bias=False)
 
         Norm = GroupNorm if args.replace_bn_with_gn else nn.BatchNorm2d
         self.y_conv_bn = Norm(inplanes)
@@ -64,7 +59,11 @@ class NonLocalBlock(nn.Module):
         """
 
         if self.compression_factor > 1:
-            x = F.max_pool3d(x, kernel_size=(1,3,3), stride=(1,self.compression_factor,self.compression_factor))
+            x = F.max_pool3d(
+                x,
+                kernel_size=(1, 3, 3),
+                stride=(1, self.compression_factor, self.compression_factor),
+            )
         # Save residual
         residual = x
 

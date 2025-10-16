@@ -3,16 +3,16 @@ import torch
 from torch import nn
 from onconet.models.inflate import inflate_model
 from onconet.models.blocks.factory import get_block
-import pdb
 
 MODEL_REGISTRY = {}
 
-STRIPPING_ERR = 'Trying to strip the model although last layer is not FC.'
-NO_MODEL_ERR = 'Model {} not in MODEL_REGISTRY! Available models are {} '
-NO_OPTIM_ERR = 'Optimizer {} not supported!'
-INVALID_NUM_BLOCKS_ERR = 'Invalid block_layout. Must be length 4. Received {}'
-INVALID_BLOCK_SPEC_ERR = 'Invalid block specification. Must be length 2 with (block_name, num_repeats). Received {}'
-NUM_MATCHING_LAYERS_MESSAGE = 'Loaded pretrained_weights for {} out of {} parameters.'
+STRIPPING_ERR = "Trying to strip the model although last layer is not FC."
+NO_MODEL_ERR = "Model {} not in MODEL_REGISTRY! Available models are {} "
+NO_OPTIM_ERR = "Optimizer {} not supported!"
+INVALID_NUM_BLOCKS_ERR = "Invalid block_layout. Must be length 4. Received {}"
+INVALID_BLOCK_SPEC_ERR = "Invalid block specification. Must be length 2 with (block_name, num_repeats). Received {}"
+NUM_MATCHING_LAYERS_MESSAGE = "Loaded pretrained_weights for {} out of {} parameters."
+
 
 def RegisterModel(model_name):
     """Registers a configuration."""
@@ -29,32 +29,32 @@ def get_model(args):
 
 
 def get_model_by_name(name, allow_wrap_model, args):
-    '''
-        Get model from MODEL_REGISTRY based on args.model_name
-        args:
-        - name: Name of model, must exit in registry
-        - allow_wrap_model: whether or not override args.wrap_model and disable model_wrapping.
-        - args: run ime args from parsing
+    """
+    Get model from MODEL_REGISTRY based on args.model_name
+    args:
+    - name: Name of model, must exit in registry
+    - allow_wrap_model: whether or not override args.wrap_model and disable model_wrapping.
+    - args: run ime args from parsing
 
-        returns:
-        - model: an instance of some torch.nn.Module
-    '''
-    if not name in MODEL_REGISTRY:
-        raise Exception(
-            NO_MODEL_ERR.format(
-                name, MODEL_REGISTRY.keys()))
-
+    returns:
+    - model: an instance of some torch.nn.Module
+    """
+    if name not in MODEL_REGISTRY:
+        raise Exception(NO_MODEL_ERR.format(name, MODEL_REGISTRY.keys()))
 
     model = MODEL_REGISTRY[name](args)
-    allow_data_parallel = 'discriminator' not in name and ('mirai_full' not in args.model_name or allow_wrap_model)
+    allow_data_parallel = "discriminator" not in name and (
+        "mirai_full" not in args.model_name or allow_wrap_model
+    )
     return wrap_model(model, allow_wrap_model, args, allow_data_parallel)
+
 
 def wrap_model(model, allow_wrap_model, args, allow_data_parallel=True):
     try:
         model._model.args.use_precomputed_hiddens = args.use_precomputed_hiddens
     except:
         pass
-    if args.multi_image and not args.model_name in ['mirai_full']:
+    if args.multi_image and args.model_name not in ["mirai_full"]:
         model = inflate_model(model)
 
     if allow_wrap_model and args.wrap_model:
@@ -65,7 +65,7 @@ def wrap_model(model, allow_wrap_model, args, allow_data_parallel=True):
             img_size = args.img_size
 
         if args.multi_image:
-            img_size = ( args.num_images, *args.img_size)
+            img_size = (args.num_images, *args.img_size)
         args.hidden_dim = get_output_size(model, img_size, args.num_chan, args.cuda)
 
         wrapped_model = ModelWrapper(model, args)
@@ -74,49 +74,57 @@ def wrap_model(model, allow_wrap_model, args, allow_data_parallel=True):
     if args.state_dict_path is not None:
         load_pretrained_weights(wrapped_model, torch.load(args.state_dict_path))
 
-    if args.num_gpus > 1 and args.data_parallel and not isinstance(wrapped_model, nn.DataParallel) and allow_data_parallel:
-        wrapped_model = nn.DataParallel(wrapped_model,
-                                    device_ids=range(args.num_gpus))
+    if (
+        args.num_gpus > 1
+        and args.data_parallel
+        and not isinstance(wrapped_model, nn.DataParallel)
+        and allow_data_parallel
+    ):
+        wrapped_model = nn.DataParallel(wrapped_model, device_ids=range(args.num_gpus))
 
     return wrapped_model
 
 
 def load_model(path, args, do_wrap_model=True):
-    logging.getLogger("model_factory").debug('Loading model from [%s]...' % path)
+    logging.getLogger("model_factory").debug("Loading model from [%s]..." % path)
     try:
-        model = torch.load(path, map_location='cpu')
+        model = torch.load(path, map_location="cpu")
 
         if isinstance(model, dict):
-            model = model['model']
+            model = model["model"]
 
         if isinstance(model, nn.DataParallel):
             model = model.module.cpu()
         try:
-           model.args.use_pred_risk_factors_at_test = args.use_pred_risk_factors_at_test 
+            model.args.use_pred_risk_factors_at_test = (
+                args.use_pred_risk_factors_at_test
+            )
         except:
-           pass
+            pass
         try:
-            if hasattr(model, '_model'):
+            if hasattr(model, "_model"):
                 _model = model._model
             else:
                 _model = model
-            _model.args.use_pred_risk_factors_at_test = args.use_pred_risk_factors_at_test
+            _model.args.use_pred_risk_factors_at_test = (
+                args.use_pred_risk_factors_at_test
+            )
             _model.args.use_precomputed_hiddens = args.use_precomputed_hiddens
             _model.args.use_pred_risk_factors_if_unk = args.use_pred_risk_factors_if_unk
             _model.args.pred_risk_factors = args.pred_risk_factors
             _model.args.use_spatial_transformer = args.use_spatial_transformer
         except:
-           pass
+            pass
         try:
             args.img_only_dim = model._model.args.img_only_dim
         except:
             pass
         if do_wrap_model:
-            model = {'model': wrap_model(model, True, args)}
+            model = {"model": wrap_model(model, True, args)}
     except:
-        raise Exception(
-            "Sorry, snapshot {} does not exist!".format(path))
+        raise Exception("Sorry, snapshot {} does not exist!".format(path))
     return model
+
 
 def validate_block_layout(block_layout):
     """Confirms that a block layout is in the right format.
@@ -160,7 +168,7 @@ def get_layers(block_layout):
 
         for block_name, num_repeats in layer_layout:
             block = get_block(block_name)
-            layer.extend([block]*num_repeats)
+            layer.extend([block] * num_repeats)
 
         layers.append(layer)
 
@@ -168,28 +176,27 @@ def get_layers(block_layout):
 
 
 def get_params(model):
-    '''
+    """
     Helper function to get parameters of a model.
     ## TODO: specify parameters to get rather than getting all
-    '''
+    """
 
     return model.parameters()
 
 
 def get_optimizer(model, args):
-    '''
+    """
     Helper function to fetch optimizer based on args.
-    '''
+    """
     params = [param for param in model.parameters() if param.requires_grad]
-    if args.optimizer == 'adam':
+    if args.optimizer == "adam":
         return torch.optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay)
-    elif args.optimizer == 'adagrad':
+    elif args.optimizer == "adagrad":
         return torch.optim.Adagrad(params, lr=args.lr, weight_decay=args.weight_decay)
-    elif args.optimizer == 'sgd':
-        return torch.optim.SGD(params,
-                              lr=args.lr,
-                              weight_decay=args.weight_decay,
-                              momentum=args.momentum )
+    elif args.optimizer == "sgd":
+        return torch.optim.SGD(
+            params, lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum
+        )
     else:
         raise Exception(NO_OPTIM_ERR.format(args.optimizer))
 
@@ -208,12 +215,18 @@ def load_pretrained_weights(model, pretrained_state_dict):
     matching_pretrained_state_dict = {
         layer_name: weights
         for layer_name, weights in pretrained_state_dict.items()
-        if (layer_name in model_state_dict and
-            pretrained_state_dict[layer_name].size() == model_state_dict[layer_name].size())
+        if (
+            layer_name in model_state_dict
+            and pretrained_state_dict[layer_name].size()
+            == model_state_dict[layer_name].size()
+        )
     }
 
-    print(NUM_MATCHING_LAYERS_MESSAGE.format(len(matching_pretrained_state_dict),
-                                             len(model_state_dict)))
+    print(
+        NUM_MATCHING_LAYERS_MESSAGE.format(
+            len(matching_pretrained_state_dict), len(model_state_dict)
+        )
+    )
     # Overwrite weights in existing state dict
     model_state_dict.update(matching_pretrained_state_dict)
 
@@ -221,26 +234,27 @@ def load_pretrained_weights(model, pretrained_state_dict):
     model.load_state_dict(model_state_dict)
 
 
-def strip_model(model, num_layers_strip = 1):
+def strip_model(model, num_layers_strip=1):
     """
     Remove the last pooling anf fc layers from the model.
 
     :model: model to strip
     :returns: stripped model
     """
-    all_children = list(model.named_children() )
+    all_children = list(model.named_children())
 
-    layers_to_strip = all_children[ -1 * num_layers_strip: ]
+    layers_to_strip = all_children[-1 * num_layers_strip :]
     for layer_name, layer in layers_to_strip:
-
-        if not type(layer) in [nn.modules.linear.Linear,
-                                nn.modules.conv.Conv1d,
-                                ModLinear, ModConv1d]:
+        if type(layer) not in [
+            nn.modules.linear.Linear,
+            nn.modules.conv.Conv1d,
+            ModLinear,
+            ModConv1d,
+        ]:
             raise STRIPPING_ERR
         model._modules[layer_name] = ModelNOP()
 
     return model
-
 
 
 def get_output_size(model, shape, channels, cuda):
@@ -266,26 +280,26 @@ def get_output_size(model, shape, channels, cuda):
 
 class ModelNOP(nn.Module):
     def __init__(self):
-        '''
-            Placeholder nn module. Returns input.
-        '''
+        """
+        Placeholder nn module. Returns input.
+        """
         super(ModelNOP, self).__init__()
-
 
     def forward(self, x):
         return x
 
+
 class ModelWrapper(nn.Module):
     def __init__(self, model, args):
-        '''
-            Given some model, add a linear layer and a softmax to fit it the task defined args.dataset
-        '''
+        """
+        Given some model, add a linear layer and a softmax to fit it the task defined args.dataset
+        """
         super(ModelWrapper, self).__init__()
         self._model = model
         self.args = args
         self.dropout = nn.Dropout(args.dropout)
         if args.make_fc:
-            self.last_hidden = nn.Conv1d(1, args.num_classes, args.hidden_dim )
+            self.last_hidden = nn.Conv1d(1, args.num_classes, args.hidden_dim)
         else:
             self.last_hidden = nn.Linear(args.hidden_dim, args.num_classes)
 
@@ -295,17 +309,16 @@ class ModelWrapper(nn.Module):
 
         return self
 
-
     def forward(self, x):
-        '''
-            param x: a batch of image tensors
-            returns logit:  logits over args.num_classes for x
-        '''
+        """
+        param x: a batch of image tensors
+        returns logit:  logits over args.num_classes for x
+        """
         hidden = self._model(x)
         hidden = self.dropout(hidden)
         hidden = hidden.view(hidden.size()[0], -1)
         if self.args.make_fc:
-            logit = self.last_hidden( hidden.unsqueeze(0).transpose(0,1)).squeeze(-1)
+            logit = self.last_hidden(hidden.unsqueeze(0).transpose(0, 1)).squeeze(-1)
         else:
             logit = self.last_hidden(hidden)
 

@@ -1,9 +1,7 @@
 # Deep Residual Learning for Image Recognition: https://arxiv.org/abs/1512.03385
 # Implementation based on PyTorch ResNet implementation: https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
 import math
-import torch
 import torch.nn as nn
-import pdb
 import numpy as np
 from onconet.models.pools.factory import get_pool
 from onconet.models.spatial_transformers.factory import get_spatial_transformer
@@ -12,10 +10,10 @@ from onconet.models.cumulative_probability_layer import Cumulative_Probability_L
 
 class ResNet(nn.Module):
     """
-        A ResNet model. Blocks can be Basic, Non-local, bottleneck or
-        anything in onconet.models.blocks and intermixed in any order.
-        This is a slight generalization of orginal resnet model,
-        which assumed a homogenous block type.
+    A ResNet model. Blocks can be Basic, Non-local, bottleneck or
+    anything in onconet.models.blocks and intermixed in any order.
+    This is a slight generalization of orginal resnet model,
+    which assumed a homogenous block type.
     """
 
     def __init__(self, layers, args):
@@ -38,36 +36,41 @@ class ResNet(nn.Module):
         self.args = args
         self.args.wrap_model = False
 
-        if hasattr(args, 'use_spatial_transformer') and args.use_spatial_transformer:
+        if hasattr(args, "use_spatial_transformer") and args.use_spatial_transformer:
             self.stn = get_spatial_transformer(args.spatial_transformer_name)(args)
 
         self.args.hidden_dim = 512 * args.block_widening_factor
-        input_dim = self.args.input_dim if self.args.use_precomputed_hiddens else self.args.num_chan
+        input_dim = (
+            self.args.input_dim
+            if self.args.use_precomputed_hiddens
+            else self.args.num_chan
+        )
         self.inplanes = max(64 * args.block_widening_factor, input_dim)
-
 
         self.all_blocks = []
         if not self.args.use_precomputed_hiddens:
             downsampler = Downsampler(self.inplanes, input_dim)
-            self.add_module('downsampler', downsampler)
-            self.all_blocks.append('downsampler')
+            self.add_module("downsampler", downsampler)
+            self.all_blocks.append("downsampler")
 
-        layer_modules = [(self._make_layer(self.inplanes, layers[0]), 'layer1_{}')]
+        layer_modules = [(self._make_layer(self.inplanes, layers[0]), "layer1_{}")]
         current_dim = self.inplanes
         indx = 1
         for layer_i in layers[1:]:
             indx += 1
             current_dim = min(current_dim * 2, 1024)
             layer_modules.append(
-                            (self._make_layer(current_dim, layer_i, stride=2),
-                             'layer{}_'.format(indx)+'{}')
-                            )
+                (
+                    self._make_layer(current_dim, layer_i, stride=2),
+                    "layer{}_".format(indx) + "{}",
+                )
+            )
         args.hidden_dim = current_dim
 
-        '''
+        """
             For all layers, register all constituent blocks to the module,
             and record block names for later access in self.all_blocks
-        '''
+        """
         for layer, layer_name in layer_modules:
             for indx, block in enumerate(layer):
                 block_name = layer_name.format(indx)
@@ -78,7 +81,11 @@ class ResNet(nn.Module):
 
         pool_name = args.pool_name
         if args.use_risk_factors:
-            pool_name = 'DeepRiskFactorPool' if self.args.deep_risk_factor_pool else 'RiskFactorPool'
+            pool_name = (
+                "DeepRiskFactorPool"
+                if self.args.deep_risk_factor_pool
+                else "RiskFactorPool"
+            )
         self.pool = get_pool(pool_name)(args, args.hidden_dim)
 
         if not self.pool.replaces_fc():
@@ -87,26 +94,36 @@ class ResNet(nn.Module):
             self.dropout = nn.Dropout(p=args.dropout)
             self.fc = nn.Linear(args.hidden_dim, args.num_classes)
 
-        if args.use_region_annotation and args.region_annotation_loss_type == 'pred_region':
-            self.region_fc = nn.Conv2d(current_dim, 1, kernel_size=args.region_annotation_pred_kernel_size, padding=(args.region_annotation_pred_kernel_size -1) // 2)
+        if (
+            args.use_region_annotation
+            and args.region_annotation_loss_type == "pred_region"
+        ):
+            self.region_fc = nn.Conv2d(
+                current_dim,
+                1,
+                kernel_size=args.region_annotation_pred_kernel_size,
+                padding=(args.region_annotation_pred_kernel_size - 1) // 2,
+            )
 
         if args.predict_birads:
-            self.birads_fc =  nn.Linear(args.hidden_dim, 2)
+            self.birads_fc = nn.Linear(args.hidden_dim, 2)
 
         if args.survival_analysis_setup:
-            self.prob_of_failure_layer = Cumulative_Probability_Layer(args.hidden_dim, args, max_followup=args.max_followup)
+            self.prob_of_failure_layer = Cumulative_Probability_Layer(
+                args.hidden_dim, args, max_followup=args.max_followup
+            )
 
         self.gpu_to_layer_assignments = self.get_gpu_to_layer()
 
     def get_gpu_to_layer(self):
-        '''
-            Given args.model_parallel, args.num_shards, will try to best
-            balance layers across gpus given the number of gpus.
+        """
+        Given args.model_parallel, args.num_shards, will try to best
+        balance layers across gpus given the number of gpus.
 
-            returns:
-            -gpu_to_layers: a list of lists of length num_shards. Each interior
-            list consist of layer names to place on that index's gpu.
-        '''
+        returns:
+        -gpu_to_layers: a list of lists of length num_shards. Each interior
+        list consist of layer names to place on that index's gpu.
+        """
         if self.args.model_parallel and self.args.num_shards > 1:
             num_shards = self.args.num_shards
         else:
@@ -135,9 +152,13 @@ class ResNet(nn.Module):
             missing_layers = original_layers - layers_assigned
 
             raise Exception(
-                'GPU partitioned layers don\'t match original layers.\n\t{}\n\t{}'.format(
-                    'Extra layers: {}'.format(extra_layers) if len(extra_layers) > 0 else '',
-                    'Missing layers: {}'.format(missing_layers) if len(missing_layers) > 0 else ''
+                "GPU partitioned layers don't match original layers.\n\t{}\n\t{}".format(
+                    "Extra layers: {}".format(extra_layers)
+                    if len(extra_layers) > 0
+                    else "",
+                    "Missing layers: {}".format(missing_layers)
+                    if len(missing_layers) > 0
+                    else "",
                 )
             )
 
@@ -157,14 +178,15 @@ class ResNet(nn.Module):
 
         for i, block in enumerate(blocks):
             if (i == 0 and stride != 1) or self.inplanes != planes * block.expansion:
-
                 downsample = nn.Sequential(
-                    nn.Conv2d(self.inplanes,
-                              planes * block.expansion,
-                              kernel_size=1,
-                              stride=stride,
-                              bias=False),
-                    nn.BatchNorm2d(planes * block.expansion)
+                    nn.Conv2d(
+                        self.inplanes,
+                        planes * block.expansion,
+                        kernel_size=1,
+                        stride=stride,
+                        bias=False,
+                    ),
+                    nn.BatchNorm2d(planes * block.expansion),
                 )
             else:
                 downsample = None
@@ -172,12 +194,15 @@ class ResNet(nn.Module):
             if i != 0:
                 stride = 1
 
-            layers.append(block(self.args,
-                                self.inplanes,
-                                planes,
-                                stride=stride,
-                                downsample=downsample
-                                ))
+            layers.append(
+                block(
+                    self.args,
+                    self.inplanes,
+                    planes,
+                    stride=stride,
+                    downsample=downsample,
+                )
+            )
 
             self.inplanes = planes * block.expansion
 
@@ -195,8 +220,11 @@ class ResNet(nn.Module):
 
         # Go through all layers up to fc
         if self.args.use_precomputed_hiddens:
-            x = x.transpose(2,1)
-        if hasattr(self.args, 'use_spatial_transformer') and self.args.use_spatial_transformer:
+            x = x.transpose(2, 1)
+        if (
+            hasattr(self.args, "use_spatial_transformer")
+            and self.args.use_spatial_transformer
+        ):
             x = self.stn(x)
         for gpu, layers in enumerate(self.gpu_to_layer_assignments):
             if self.args.cuda and self.args.model_parallel:
@@ -205,22 +233,23 @@ class ResNet(nn.Module):
                 layer = self._modules[name]
                 x = layer(x)
         logit, hidden = self.aggregate_and_classify(x, risk_factors=risk_factors)
-        activ_dict = {'activ':x}
+        activ_dict = {"activ": x}
         if self.args.use_region_annotation:
-            activ_dict['region_logit'] = self.region_fc(x)
+            activ_dict["region_logit"] = self.region_fc(x)
         if self.args.predict_birads:
-            activ_dict['birads_logit'] = self.birads_fc(hidden)
+            activ_dict["birads_logit"] = self.birads_fc(hidden)
 
         if self.args.pred_risk_factors:
             try:
-                activ_dict['pred_rf_loss'] = self.pool.get_pred_rf_loss(hidden, risk_factors)
+                activ_dict["pred_rf_loss"] = self.pool.get_pred_rf_loss(
+                    hidden, risk_factors
+                )
             except:
                 pass
         if self.args.use_precomputed_hiddens:
             return logit, logit, logit, hidden
         else:
             return logit, hidden, activ_dict
-
 
     def aggregate_and_classify(self, x, risk_factors=None):
         # Pooling layer
@@ -234,7 +263,7 @@ class ResNet(nn.Module):
             try:
                 # placed in try catch for back compatbility.
                 hidden = self.relu(hidden)
-            except :
+            except:
                 pass
             hidden = self.dropout(hidden)
             logit = self.fc(hidden)
@@ -243,20 +272,18 @@ class ResNet(nn.Module):
             logit = self.prob_of_failure_layer(hidden)
         return logit, hidden
 
-
-
     def cuda(self, device=None):
-        '''
-            Moves all submodules to gpu according to gpu_to_layer_assignments.
-            , and returns model.
-            Does not currently support start device different from 0.
-            self.fc is always placed on the last GPU to reduce the amount of cross GPU communication.
+        """
+        Moves all submodules to gpu according to gpu_to_layer_assignments.
+        , and returns model.
+        Does not currently support start device different from 0.
+        self.fc is always placed on the last GPU to reduce the amount of cross GPU communication.
 
-            Note, must be called directly from parent module must overide it's .cuda() function to directly call this .cuda() fn trigger this
-            method. Generic .cuda() call skips this function, and recurses to leaf nodes directly.
-        '''
+        Note, must be called directly from parent module must overide it's .cuda() function to directly call this .cuda() fn trigger this
+        method. Generic .cuda() call skips this function, and recurses to leaf nodes directly.
+        """
         if not self.args.model_parallel:
-             return self._apply(lambda t: t.cuda(device))
+            return self._apply(lambda t: t.cuda(device))
 
         for gpu, layers in enumerate(self.gpu_to_layer_assignments):
             # fetch layers for GPU at device gpu(int)
@@ -271,17 +298,15 @@ class ResNet(nn.Module):
         return self
 
 
-
 class Downsampler(nn.Module):
     """Downsampling layers for ResNet. Downsamples input by 4x"""
 
-
     def __init__(self, inplanes, num_chan=3):
-
         self.inplanes = inplanes
         super(Downsampler, self).__init__()
-        self.conv1 = nn.Conv2d(num_chan, inplanes, kernel_size=7, stride=2, padding=3,
-                               bias=False)
+        self.conv1 = nn.Conv2d(
+            num_chan, inplanes, kernel_size=7, stride=2, padding=3, bias=False
+        )
         self.bn1 = nn.BatchNorm2d(inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -289,12 +314,10 @@ class Downsampler(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
+                m.weight.data.normal_(0, math.sqrt(2.0 / n))
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
-
-
 
     def forward(self, x):
         x = self.conv1(x)

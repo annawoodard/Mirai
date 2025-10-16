@@ -4,9 +4,9 @@ from onconet.models.pools.abstract_pool import AbstractPool
 from onconet.models.pools.factory import RegisterPool
 from onconet.models.pools.factory import get_pool
 from onconet.utils.risk_factors import RiskFactorVectorizer
-import pdb
 
-@RegisterPool('DeepRiskFactorPool')
+
+@RegisterPool("DeepRiskFactorPool")
 class RiskFactorPool(AbstractPool):
     def __init__(self, args, num_chan):
         super(RiskFactorPool, self).__init__(args, num_chan)

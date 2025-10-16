@@ -2,7 +2,6 @@ import random
 import torchvision
 from onconet.transformers.factory import RegisterImageTransformer
 from onconet.transformers.abstract import Abstract_transformer
-import pdb
 
 
 @RegisterImageTransformer("scale_3d")
@@ -34,8 +33,8 @@ class Random_Scale_3d(Abstract_transformer):
 
     def __init__(self, args, kwargs):
         super(Random_Scale_3d, self).__init__()
-        assert all([k in kwargs for k in ['min', 'max']])
-        size = random.randint(int(kwargs['min']), int(kwargs['max']))
+        assert all([k in kwargs for k in ["min", "max"]])
+        size = random.randint(int(kwargs["min"]), int(kwargs["max"]))
 
         def random_scale_3d(vid):
             return [torchvision.transforms.Resize(size)(img) for img in vid]
@@ -54,12 +53,16 @@ class Random_Crop_3d(Abstract_transformer):
 
     def __init__(self, args, kwargs):
         super(Random_Crop_3d, self).__init__()
-        assert all([k in kwargs for k in ['height', 'width']])
-        self.output_size = (int(kwargs['height']), int(kwargs['width']))
+        assert all([k in kwargs for k in ["height", "width"]])
+        self.output_size = (int(kwargs["height"]), int(kwargs["width"]))
 
         def random_crop_3d(vid):
-            i, j, h, w = torchvision.transforms.RandomCrop.get_params(vid[0], self.output_size)
-            vid = [torchvision.transforms.functional.crop(img, i, j, h, w) for img in vid]
+            i, j, h, w = torchvision.transforms.RandomCrop.get_params(
+                vid[0], self.output_size
+            )
+            vid = [
+                torchvision.transforms.functional.crop(img, i, j, h, w) for img in vid
+            ]
             return vid
 
         self.transform = torchvision.transforms.Lambda(random_crop_3d)

@@ -5,13 +5,12 @@ from onconet.datasets.factory import RegisterDataset
 from onconet.utils.generic import normalize_dictionary
 
 SUMMARY_MSG = "Contructed MGH Mammo {} {} dataset with {} records, and the following class balance \n {}"
-METADATA_FILENAMES = {
-    1: "mammo_metadata_1year_jul23_2018_0years_post_pos_path.json"
-}
+METADATA_FILENAMES = {1: "mammo_metadata_1year_jul23_2018_0years_post_pos_path.json"}
+
 
 class Abstract_MGH_Mammo_Risk_Multi_View_Dataset(Abstract_Onco_Dataset):
     """A risk dataset where each input consists of two images of the same breast:
-     one from the CC view and one from the MLO view."""
+    one from the CC view and one from the MLO view."""
 
     def create_dataset(self, split_group, img_dir):
         """Gets the dataset from the paths and labels in the json.
@@ -29,7 +28,7 @@ class Abstract_MGH_Mammo_Risk_Multi_View_Dataset(Abstract_Onco_Dataset):
         dataset = []
         class_balance = {}
         for mrn_row in tqdm(self.metadata_json):
-            split, exams = mrn_row['split'], mrn_row['accessions']
+            split, exams = mrn_row["split"], mrn_row["accessions"]
             if not split == split_group:
                 continue
 
@@ -37,17 +36,17 @@ class Abstract_MGH_Mammo_Risk_Multi_View_Dataset(Abstract_Onco_Dataset):
                 if not self.check_label(exam):
                     continue
 
-                year = exam['sdate']
+                year = exam["sdate"]
 
-                if split_group == 'train':
-                    if not (year in self.args.train_years):
+                if split_group == "train":
+                    if year not in self.args.train_years:
                         continue
-                elif split_group == 'dev':
-                    if not (year in self.args.dev_years):
+                elif split_group == "dev":
+                    if year not in self.args.dev_years:
                         continue
                 else:
-                    assert split_group == 'test'
-                    if not (year in self.args.test_years):
+                    assert split_group == "test"
+                    if year not in self.args.test_years:
                         continue
 
                 # Get label
@@ -55,29 +54,35 @@ class Abstract_MGH_Mammo_Risk_Multi_View_Dataset(Abstract_Onco_Dataset):
                 if label not in class_balance:
                     class_balance[label] = 0
 
-                left_ccs, left_mlos, right_ccs, right_mlos = self.image_paths_by_views(exam)
+                left_ccs, left_mlos, right_ccs, right_mlos = self.image_paths_by_views(
+                    exam
+                )
 
                 # Create data input with one left CC and one left MLO
                 if len(left_ccs) > 0 and len(left_mlos) > 0:
-                    dataset.append({
-                        'paths': [left_ccs[0], left_mlos[0]],
-                        'y': label,
-                        'year': year,
-                        'additionals': [],
-                        'exam': exam['accession'],
-                        'dist_key': "{}:{}".format(year, label)
-                    })
+                    dataset.append(
+                        {
+                            "paths": [left_ccs[0], left_mlos[0]],
+                            "y": label,
+                            "year": year,
+                            "additionals": [],
+                            "exam": exam["accession"],
+                            "dist_key": "{}:{}".format(year, label),
+                        }
+                    )
                     class_balance[label] += 1
 
                 # Create data input with one right CC and one right MLO
                 if len(right_ccs) > 0 and len(right_mlos) > 0:
-                    dataset.append({
-                        'paths': [right_ccs[0], right_mlos[0]],
-                        'y': label,
-                        'additionals': [],
-                        'exam': exam['accession'],
-                        'dist_key': "{}:{}".format(year, label)
-                    })
+                    dataset.append(
+                        {
+                            "paths": [right_ccs[0], right_mlos[0]],
+                            "y": label,
+                            "additionals": [],
+                            "exam": exam["accession"],
+                            "dist_key": "{}:{}".format(year, label),
+                        }
+                    )
                     class_balance[label] += 1
 
         class_balance = normalize_dictionary(class_balance)
@@ -90,10 +95,10 @@ class Abstract_MGH_Mammo_Risk_Multi_View_Dataset(Abstract_Onco_Dataset):
         return "{} Years Risk Multi View".format(self.years)
 
     def check_label(self, row):
-        return 'years_to_cancer' in row
+        return "years_to_cancer" in row
 
     def get_label(self, row):
-        return row['years_to_cancer'] < self.years
+        return row["years_to_cancer"] < self.years
 
     @property
     def METADATA_FILENAME(self):
@@ -104,6 +109,7 @@ class Abstract_MGH_Mammo_Risk_Multi_View_Dataset(Abstract_Onco_Dataset):
         args.num_classes = 4 if args.predict_birads else 2
         args.multi_image = True
         args.num_images = 2
+
 
 @RegisterDataset("mgh_mammo_1year_risk_multi_view")
 class MGH_Mammo_1Year_Risk_Multi_View(Abstract_MGH_Mammo_Risk_Multi_View_Dataset):
@@ -129,4 +135,6 @@ class MGH_Mammo_1Year_Risk_Multi_View(Abstract_MGH_Mammo_Risk_Multi_View_Dataset
         """
 
         self.years = 1
-        super(MGH_Mammo_1Year_Risk_Multi_View, self).__init__(args, transformer, split_group)
+        super(MGH_Mammo_1Year_Risk_Multi_View, self).__init__(
+            args, transformer, split_group
+        )

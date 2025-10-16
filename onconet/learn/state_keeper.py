@@ -2,18 +2,28 @@ import pickle
 import os
 import torch
 import collections
-import hashlib
 import copy
 
 from onconet.utils.generic import md5
 
-OPTIMIZER_PATH = '{}_optim.pt'
-PARAM_PATH = '{}_param.p'
-STATS_PATH = '{}_stats.p'
-MODEL_PATH = '{}_model.pt'
+OPTIMIZER_PATH = "{}_optim.pt"
+PARAM_PATH = "{}_param.p"
+STATS_PATH = "{}_stats.p"
+MODEL_PATH = "{}_model.pt"
 ERROR_MSG = "Sorry, {} does not exist!"
 
-EXCLUDED_ARGS = ['start_time', 'model_path', 'optimizer_state', 'current_epoch', 'lr', 'epoch_stats', 'resume', 'patient_to_partition_dict', 'path_to_hidden_dict']
+EXCLUDED_ARGS = [
+    "start_time",
+    "model_path",
+    "optimizer_state",
+    "current_epoch",
+    "lr",
+    "epoch_stats",
+    "resume",
+    "patient_to_partition_dict",
+    "path_to_hidden_dict",
+]
+
 
 def get_identifier(args):
     """
@@ -32,18 +42,21 @@ def get_identifier(args):
         if attr in hash_args:
             del hash_args[attr]
 
-    ordered_args = collections.OrderedDict(sorted(hash_args.items(), key=lambda t: t[0]))
-    parameters_string = ''.join([str(i) for i in ordered_args.values()])
+    ordered_args = collections.OrderedDict(
+        sorted(hash_args.items(), key=lambda t: t[0])
+    )
+    parameters_string = "".join([str(i) for i in ordered_args.values()])
     key = md5(parameters_string)
     return key
+
 
 def get_model_path(args):
     key = get_identifier(args)
     return MODEL_PATH.format(os.path.join(args.save_dir, key))
 
 
-class StateKeeper():
-    '''Takes care of saving and loading models for resumable training.'''
+class StateKeeper:
+    """Takes care of saving and loading models for resumable training."""
 
     def __init__(self, args):
         self.args = args
@@ -61,16 +74,16 @@ class StateKeeper():
         """
         ## Save dict for epoch and lr.
         param_dict = {}
-        param_dict['epoch'] = epoch
-        param_dict['lr'] = lr
+        param_dict["epoch"] = epoch
+        param_dict["lr"] = lr
         identifier = self.identifier
         param_path = PARAM_PATH.format(os.path.join(self.args.save_dir, identifier))
-        with open(param_path, 'wb') as param_file:
+        with open(param_path, "wb") as param_file:
             pickle.dump(param_dict, param_file)
 
         ## Save epoch_stats dict.
         stats_path = STATS_PATH.format(os.path.join(self.args.save_dir, identifier))
-        with open(stats_path, 'wb') as stats_file:
+        with open(stats_path, "wb") as stats_file:
             pickle.dump(epoch_stats, stats_file)
 
         ## Save models and corresponding optimizers
@@ -79,22 +92,21 @@ class StateKeeper():
             # save model
             model = models[model_name]
             model_path = os.path.join(
-                            self.args.save_dir,
-                            "{}_{}".format(
-                                model_name, MODEL_PATH.format(identifier)))
+                self.args.save_dir,
+                "{}_{}".format(model_name, MODEL_PATH.format(identifier)),
+            )
 
             torch.save(model, model_path)
             # save optimizer
             optimizer = optimizers[model_name]
             optimizer_path = os.path.join(
-                                self.args.save_dir,
-                                "{}_{}".format(
-                                    model_name, OPTIMIZER_PATH.format(identifier)))
+                self.args.save_dir,
+                "{}_{}".format(model_name, OPTIMIZER_PATH.format(identifier)),
+            )
             torch.save(optimizer.state_dict(), optimizer_path)
 
             model_paths.append(model_path)
         return model_paths
-
 
     def load(self):
         """
@@ -110,87 +122,97 @@ class StateKeeper():
         ## Load dict for epoch and lr.
         param_path = PARAM_PATH.format(os.path.join(self.args.save_dir, identifier))
         try:
-            with open(param_path, 'rb') as param_file:
+            with open(param_path, "rb") as param_file:
                 param_dict = pickle.load(param_file)
         except Exception as e:
-            print (e.message)
+            print(e.message)
 
         ## Load epoch_stats dict.
         stats_path = STATS_PATH.format(os.path.join(self.args.save_dir, identifier))
         try:
-            with open(stats_path, 'rb') as stats_file:
+            with open(stats_path, "rb") as stats_file:
                 epoch_stats = pickle.load(stats_file)
         except Exception as e:
-            print (e.message)
-
+            print(e.message)
 
         ## Load model and corresponding optimizers.
         models = {}
         optimizer_states = {}
 
-        model_names = ['model']
+        model_names = ["model"]
         if self.args.use_adv:
             if self.args.use_mmd_adv:
-                model_names.extend(['pos_adv', 'neg_adv'])
+                model_names.extend(["pos_adv", "neg_adv"])
                 if self.args.add_repulsive_mmd:
-                    model_names.append('repel_adv')
+                    model_names.append("repel_adv")
             else:
-                model_names.append('adv')
+                model_names.append("adv")
 
         for model_name in model_names:
             # Load model
 
             model_path = os.path.join(
-                                self.args.save_dir,
-                                "{}_{}".format(
-                                    model_name, MODEL_PATH.format(identifier)))
+                self.args.save_dir,
+                "{}_{}".format(model_name, MODEL_PATH.format(identifier)),
+            )
             try:
                 models[model_name] = torch.load(model_path)
             except:
-                raise Exception(
-                    ERROR_MSG.format(model_path))
+                raise Exception(ERROR_MSG.format(model_path))
             print("Loading from " + str(model_path))
             # Load optimizer state
             optimizer_path = os.path.join(
-                                self.args.save_dir,
-                                "{}_{}".format(
-                                    model_name, OPTIMIZER_PATH.format(identifier)))
+                self.args.save_dir,
+                "{}_{}".format(model_name, OPTIMIZER_PATH.format(identifier)),
+            )
             try:
                 optimizer_states[model_name] = torch.load(optimizer_path)
             except:
-                raise Exception(
-                    ERROR_MSG.format(optimizer_path))
+                raise Exception(ERROR_MSG.format(optimizer_path))
 
-        return models, optimizer_states, param_dict['epoch'], param_dict['lr'], epoch_stats
-
+        return (
+            models,
+            optimizer_states,
+            param_dict["epoch"],
+            param_dict["lr"],
+            epoch_stats,
+        )
 
     def load_optimizer(self, optimizer, state_dict):
-        '''
-            Given an optimizer and a state_dict, loads the state_dict into
-            the optimizer while preserving correct device placement.
+        """
+        Given an optimizer and a state_dict, loads the state_dict into
+        the optimizer while preserving correct device placement.
 
-            returns: optimizer, with new state_dict
+        returns: optimizer, with new state_dict
 
-        '''
+        """
         # Build mapping from param to device
         param_to_device = {}
-        for param_key in state_dict['state']:
-            param = state_dict['state'][param_key]
+        for param_key in state_dict["state"]:
+            param = state_dict["state"][param_key]
             for attribute_key in param:
-                if isinstance(param[attribute_key], int) or isinstance(param[attribute_key], float):
+                if isinstance(param[attribute_key], int) or isinstance(
+                    param[attribute_key], float
+                ):
                     continue
-                param_to_device["{}_{}".format(param_key, attribute_key)] = param[attribute_key].get_device()
+                param_to_device["{}_{}".format(param_key, attribute_key)] = param[
+                    attribute_key
+                ].get_device()
 
         optimizer.load_state_dict(state_dict)
         if self.args.cuda:
             # Move params to correct gpus. Load_state_dict uses copy.deepcopy which loses device information
-            for param_key in optimizer.state_dict()['state']:
-                param = optimizer.state_dict()['state'][param_key]
+            for param_key in optimizer.state_dict()["state"]:
+                param = optimizer.state_dict()["state"][param_key]
                 for attribute_key in param:
-                    if isinstance(param[attribute_key], int) or isinstance(param[attribute_key], float):
+                    if isinstance(param[attribute_key], int) or isinstance(
+                        param[attribute_key], float
+                    ):
                         continue
-                    optimizer.state_dict()['state'][param_key][attribute_key] = optimizer.state_dict()['state'][param_key][attribute_key].cuda( param_to_device["{}_{}".format(param_key, attribute_key)])
+                    optimizer.state_dict()["state"][param_key][attribute_key] = (
+                        optimizer.state_dict()["state"][param_key][attribute_key].cuda(
+                            param_to_device["{}_{}".format(param_key, attribute_key)]
+                        )
+                    )
 
         return optimizer
-
-

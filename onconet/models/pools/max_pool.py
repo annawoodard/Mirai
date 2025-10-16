@@ -1,11 +1,10 @@
 import torch
-import torch.nn as nn
 from onconet.models.pools.abstract_pool import AbstractPool
 from onconet.models.pools.factory import RegisterPool
 
-@RegisterPool('GlobalMaxPool')
-class GlobalMaxPool(AbstractPool):
 
+@RegisterPool("GlobalMaxPool")
+class GlobalMaxPool(AbstractPool):
     def replaces_fc(self):
         return False
 

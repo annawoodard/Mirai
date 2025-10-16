@@ -1,22 +1,28 @@
-import json
 import datetime
+import json
 import logging
 import math
-import pprint
+import os
+import sys
 import traceback
 import unittest
-import sys
-import os
 import warnings
 import zipfile
 
 import pydicom
-
-
 from torch.serialization import SourceChangeWarning
+
 warnings.filterwarnings("ignore", category=SourceChangeWarning, append=True)
 warnings.filterwarnings("ignore", category=UserWarning, append=True)
-warnings.filterwarnings("ignore", message=".*Manufacturer not GE or C-View/VOI LUT doesn't exist.*", append=True)
+warnings.filterwarnings(
+    "ignore",
+    message=".*Manufacturer not GE or C-View/VOI LUT doesn't exist.*",
+    append=True,
+)
+# suppress pydicom VR UI validation warnings for non-standard UIDs
+warnings.filterwarnings("ignore", message=".*Invalid value for VR UI.*", append=True)
+# also set pydicom logging level to suppress warnings at the source
+logging.getLogger("pydicom.valuerep").setLevel(logging.ERROR)
 
 # append module root directory to sys.path
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -36,7 +42,9 @@ def download_file(url, destination):
     try:
         urllib.request.urlretrieve(url, destination)
     except Exception as e:
-        logging.getLogger("mirai_full").error(f"An error occurred while downloading from {url} to {destination}: {e}")
+        logging.getLogger("mirai_full").error(
+            f"An error occurred while downloading from {url} to {destination}: {e}"
+        )
         raise e
 
 
@@ -45,12 +53,14 @@ class TestPredictionRegression(unittest.TestCase):
     Test that the model predictions are the same as the expected predictions.
     Running this test will be very time consuming, since we need to process so many scans.
     """
+
     def setUp(self):
         pass
 
     def test_predict_inbreast(self):
         if not os.environ.get("MIRAI_TEST_RUN_REGRESSION", "false").lower() == "true":
             import pytest
+
             pytest.skip(f"Skipping long-running test in {type(self)}.")
 
         import onconet.predict as predict
@@ -77,7 +87,9 @@ class TestPredictionRegression(unittest.TestCase):
         # https://www.kaggle.com/datasets/martholi/inbreast
         test_data_dir = os.path.join(PROJECT_DIR, "tests/test_data")
         image_data_dir = os.path.join(test_data_dir, "inbreast", "ALL-IMGS")
-        input_table = os.path.join(PROJECT_DIR, "tests/test_data/inbreast_table_v01.tsv")
+        input_table = os.path.join(
+            PROJECT_DIR, "tests/test_data/inbreast_table_v01.tsv"
+        )
 
         version = onconet.__version__
         out_fi_name = f"inbreast_predictions_v{version}.json"
@@ -98,7 +110,7 @@ class TestPredictionRegression(unittest.TestCase):
         }
         if os.path.exists(cur_pred_results):
             if allow_resume:
-                with open(cur_pred_results, 'r') as f:
+                with open(cur_pred_results, "r") as f:
                     all_results = json.load(f)
             else:
                 os.remove(cur_pred_results)
@@ -107,8 +119,10 @@ class TestPredictionRegression(unittest.TestCase):
         num_patients = input_df[group_col].nunique()
         num_to_process = min(num_patients, max_to_process)
 
-        print(f"About to process {num_to_process} patients with version {version}.\n"
-              f"Results will be saved to {cur_pred_results}")
+        print(
+            f"About to process {num_to_process} patients with version {version}.\n"
+            f"Results will be saved to {cur_pred_results}"
+        )
 
         idx = 0
         for patient_id, group_df in input_df.groupby(group_col):
@@ -117,7 +131,9 @@ class TestPredictionRegression(unittest.TestCase):
                 break
 
             idx += 1
-            print(f"{datetime.datetime.now()} Processing {patient_id} ({idx}/{num_to_process})")
+            print(
+                f"{datetime.datetime.now()} Processing {patient_id} ({idx}/{num_to_process})"
+            )
             if patient_id in all_results:
                 print(f"Already processed {patient_id}, skipping")
                 continue
@@ -129,28 +145,39 @@ class TestPredictionRegression(unittest.TestCase):
                     dicom_file_name = row[filename_col]
                     dicom_file = os.path.join(image_data_dir, row[filename_col])
                     dicom = pydicom.dcmread(dicom_file)
-                    view_str = row['View']
-                    side_str = row['Laterality']
+                    view_str = row["View"]
+                    side_str = row["Laterality"]
                     # view = 0 if view_str == 'CC' else 1
                     # side = 0 if side_str == 'R' else 1
 
                     dicom.Manufacturer = "GE"  # ???
                     dicom.ViewPosition = view_str
                     dicom.ImageLaterality = side_str
-                    new_dicom_file = os.path.join(temp_dir, dicom_file_name.replace(".dcm", f"_resaved.dcm"))
+                    new_dicom_file = os.path.join(
+                        temp_dir, dicom_file_name.replace(".dcm", "_resaved.dcm")
+                    )
                     dicom.save_as(new_dicom_file)
                     assert os.path.exists(new_dicom_file)
                     dicom_file_paths.append(new_dicom_file)
             else:
-                dicom_file_paths = [os.path.join(image_data_dir, f) for f in dicom_file_names]
+                dicom_file_paths = [
+                    os.path.join(image_data_dir, f) for f in dicom_file_names
+                ]
 
             prediction = {}
 
             if use_ark:
                 import requests
+
                 # Submit prediction to ARK server.
-                files = [('dicom', open(file_path, 'rb')) for file_path in dicom_file_paths]
-                r = requests.post("http://localhost:5000/dicom/files", data={"dcmtk": False}, files=files)
+                files = [
+                    ("dicom", open(file_path, "rb")) for file_path in dicom_file_paths
+                ]
+                r = requests.post(
+                    "http://localhost:5000/dicom/files",
+                    data={"dcmtk": False},
+                    files=files,
+                )
                 _ = [f[1].close() for f in files]
                 if r.status_code != 200:
                     print(f"An error occurred while processing {patient_id}: {r.text}")
@@ -160,40 +187,48 @@ class TestPredictionRegression(unittest.TestCase):
                     prediction = r.json()["data"]
             else:
                 try:
-                    prediction = predict.predict(dicom_file_paths, predict.DEFAULT_CONFIG_PATH, use_pydicom=False)
+                    prediction = predict.predict(
+                        dicom_file_paths, predict.DEFAULT_CONFIG_PATH, use_pydicom=False
+                    )
                 except Exception as e:
                     print(f"An error occurred while processing {patient_id}: {e}")
                     prediction["error"] = traceback.format_exc()
 
-            cur_dict = {"files": dicom_file_names,
-                        group_col: patient_id}
+            cur_dict = {"files": dicom_file_names, group_col: patient_id}
             if prediction:
                 cur_dict.update(prediction)
 
             all_results[patient_id] = cur_dict
 
-            with open(cur_pred_results, 'w') as f:
+            with open(cur_pred_results, "w") as f:
                 json.dump(all_results, f, indent=2)
 
     def test_compare_predict_scores(self):
         if not os.environ.get("MIRAI_TEST_RUN_REGRESSION", "false").lower() == "true":
             import pytest
+
             pytest.skip(f"Skipping long-running test in {type(self)}.")
 
-        baseline_preds_path = os.path.join(PROJECT_DIR, "tests", "inbreast_predictions_v0.7.0.json")
+        baseline_preds_path = os.path.join(
+            PROJECT_DIR, "tests", "inbreast_predictions_v0.7.0.json"
+        )
         new_preds_path = os.environ.get("MIRAI_TEST_COMPARE_PATH")
         pred_key = "predictions"
         num_compared = 0
 
-        with open(baseline_preds_path, 'r') as f:
+        with open(baseline_preds_path, "r") as f:
             baseline_preds = json.load(f)
-        with open(new_preds_path, 'r') as f:
+        with open(new_preds_path, "r") as f:
             new_preds = json.load(f)
 
         ignore_keys = {"__metadata__"}
-        overlap_keys = set(baseline_preds.keys()).intersection(new_preds.keys()) - ignore_keys
+        overlap_keys = (
+            set(baseline_preds.keys()).intersection(new_preds.keys()) - ignore_keys
+        )
         union_keys = set(baseline_preds.keys()).union(new_preds.keys()) - ignore_keys
-        print(f"{len(overlap_keys)} / {len(union_keys)} patients in common between the two prediction files.")
+        print(
+            f"{len(overlap_keys)} / {len(union_keys)} patients in common between the two prediction files."
+        )
 
         for key in overlap_keys:
             if key in ignore_keys:
@@ -210,7 +245,12 @@ class TestPredictionRegression(unittest.TestCase):
             for year in cur_baseline_preds:
                 baseline_score = cur_baseline_preds[year]
                 new_score = cur_new_preds[year]
-                self.assertAlmostEqual(baseline_score, new_score, delta=0.0001, msg=f"Scores for {key} differ for year {year}. Baseline: {baseline_score}, New: {new_score}")
+                self.assertAlmostEqual(
+                    baseline_score,
+                    new_score,
+                    delta=0.0001,
+                    msg=f"Scores for {key} differ for year {year}. Baseline: {baseline_score}, New: {new_score}",
+                )
 
             num_compared += 1
 
@@ -228,28 +268,46 @@ class TestPredict(unittest.TestCase):
             if not os.path.exists("mirai_demo_data.zip"):
                 download_file(pegged_url, "mirai_demo_data.zip")
             # Unzip file
-            with zipfile.ZipFile("mirai_demo_data.zip", 'r') as zip_ref:
+            with zipfile.ZipFile("mirai_demo_data.zip", "r") as zip_ref:
                 zip_ref.extractall(self.data_dir)
 
     def test_demo_data(self):
         data_dir = self.data_dir
-        dicom_files = [f"{data_dir}/ccl1.dcm",
-                       f"{data_dir}/ccr1.dcm",
-                       f"{data_dir}/mlol2.dcm",
-                       f"{data_dir}/mlor2.dcm"]
+        dicom_files = [
+            f"{data_dir}/ccl1.dcm",
+            f"{data_dir}/ccr1.dcm",
+            f"{data_dir}/mlol2.dcm",
+            f"{data_dir}/mlor2.dcm",
+        ]
 
         import onconet.predict as predict
 
         actual_result = predict.predict(dicom_files, predict.DEFAULT_CONFIG_PATH)
-        expected_result = {'predictions': {'Year 1': 0.0298, 'Year 2': 0.0483, 'Year 3': 0.0684, 'Year 4': 0.09, 'Year 5': 0.1016}}
+        expected_result = {
+            "predictions": {
+                "Year 1": 0.0298,
+                "Year 2": 0.0483,
+                "Year 3": 0.0684,
+                "Year 4": 0.09,
+                "Year 5": 0.1016,
+            }
+        }
 
-        self.assertEqual(actual_result["predictions"], expected_result["predictions"], "Prediction does not match expected result.")
+        self.assertEqual(
+            actual_result["predictions"],
+            expected_result["predictions"],
+            "Prediction does not match expected result.",
+        )
 
         # Try again with dicom files in a different order
         dicom_files = [dicom_files[2], dicom_files[3], dicom_files[0], dicom_files[1]]
         actual_result = predict.predict(dicom_files, predict.DEFAULT_CONFIG_PATH)
-        self.assertEqual(actual_result["predictions"], expected_result["predictions"], "Prediction does not match expected result in new order.")
+        self.assertEqual(
+            actual_result["predictions"],
+            expected_result["predictions"],
+            "Prediction does not match expected result in new order.",
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

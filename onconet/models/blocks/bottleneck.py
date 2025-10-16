@@ -1,7 +1,8 @@
 import torch.nn as nn
 from onconet.models.blocks.factory import RegisterBlock
 
-@RegisterBlock('Bottleneck')
+
+@RegisterBlock("Bottleneck")
 class Bottleneck(nn.Module):
     """A bottleneck block for Resnets.
 
@@ -23,10 +24,21 @@ class Bottleneck(nn.Module):
         """
 
         super(Bottleneck, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False, groups=args.num_groups)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-                               padding=1, bias=False, groups=args.num_groups)
-        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False, groups=args.num_groups)
+        self.conv1 = nn.Conv2d(
+            inplanes, planes, kernel_size=1, bias=False, groups=args.num_groups
+        )
+        self.conv2 = nn.Conv2d(
+            planes,
+            planes,
+            kernel_size=3,
+            stride=stride,
+            padding=1,
+            bias=False,
+            groups=args.num_groups,
+        )
+        self.conv3 = nn.Conv2d(
+            planes, planes * 4, kernel_size=1, bias=False, groups=args.num_groups
+        )
 
         self.bn1 = nn.BatchNorm2d(planes)
         self.bn2 = nn.BatchNorm2d(planes)

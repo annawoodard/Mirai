@@ -1,6 +1,6 @@
 import torch.nn as nn
 from onconet.models.blocks.factory import RegisterBlock
-import pdb
+
 
 def conv3x3(inplanes, outplanes, stride=1, groups=1):
     """Builds a 3x3 convolution layer with padding.
@@ -16,10 +16,18 @@ def conv3x3(inplanes, outplanes, stride=1, groups=1):
         A Conv2d layer performing 3x3 convolutions.
     """
 
-    return nn.Conv2d(inplanes, outplanes, kernel_size=3,
-                     stride=stride, padding=1, bias=False, groups=1)
+    return nn.Conv2d(
+        inplanes,
+        outplanes,
+        kernel_size=3,
+        stride=stride,
+        padding=1,
+        bias=False,
+        groups=1,
+    )
 
-@RegisterBlock('BasicBlock')
+
+@RegisterBlock("BasicBlock")
 class BasicBlock(nn.Module):
     """A basic block for Resnets.
 

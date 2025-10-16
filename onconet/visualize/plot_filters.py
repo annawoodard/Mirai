@@ -3,12 +3,12 @@ import argparse
 import math
 
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
 import numpy as np
 import torch
-from torchvision import models  # for testing
 from tqdm import trange
 
 
@@ -26,12 +26,12 @@ def float_to_pixel(x):
 
     # Convert to pixel values, i.e. ints in range [0, 255]
     x *= 255
-    x = x.astype('uint8')
+    x = x.astype("uint8")
 
     return x
 
 
-def plot_filters_bw(save_path, tensor, title='Filters'):
+def plot_filters_bw(save_path, tensor, title="Filters"):
     """Plots all the channels of all the filters for a tensor in a grid."""
 
     if not tensor.ndim == 4:
@@ -44,8 +44,7 @@ def plot_filters_bw(save_path, tensor, title='Filters'):
 
     fig = plt.figure()
     fig.suptitle(title)
-    outer = gridspec.GridSpec(
-        num_outer_rows, num_outer_cols, wspace=0.4, hspace=0.4)
+    outer = gridspec.GridSpec(num_outer_rows, num_outer_cols, wspace=0.4, hspace=0.4)
 
     for f in trange(num_filters):
         inner = gridspec.GridSpecFromSubplotSpec(
@@ -53,21 +52,19 @@ def plot_filters_bw(save_path, tensor, title='Filters'):
             num_inner_cols,
             subplot_spec=outer[f],
             wspace=0.1,
-            hspace=0.1)
+            hspace=0.1,
+        )
 
         for c in trange(num_channels):
             ax = plt.Subplot(fig, inner[c])
-            ax.imshow(
-                float_to_pixel(tensor[f, c]),
-                interpolation='none',
-                cmap='gray')
-            ax.axis('off')
+            ax.imshow(float_to_pixel(tensor[f, c]), interpolation="none", cmap="gray")
+            ax.axis("off")
             fig.add_subplot(ax)
 
     plt.savefig(save_path)
 
 
-def plot_filters_rgb(save_path, tensor, title='Filters'):
+def plot_filters_rgb(save_path, tensor, title="Filters"):
     """Plots RGB (3-channel) filters for a tensor in a grid."""
 
     if not tensor.ndim == 4:
@@ -86,8 +83,8 @@ def plot_filters_rgb(save_path, tensor, title='Filters'):
 
     for i in trange(num_filters):
         ax = fig.add_subplot(num_rows, num_cols, i + 1)
-        ax.imshow(float_to_pixel(tensor[i]), interpolation='none')
-        ax.axis('off')
+        ax.imshow(float_to_pixel(tensor[i]), interpolation="none")
+        ax.axis("off")
 
     plt.subplots_adjust(wspace=0.1, hspace=0.1)
     plt.savefig(save_path)
@@ -98,8 +95,7 @@ def plot_filters(save_path, snapshot_path, layer_name, rgb):
         model = torch.load(snapshot_path)
     except:
         # model = models.resnet18(pretrained=True) # for testing
-        raise Exception(
-            "Sorry, snapshot {} does not exist!".format(snapshot_path))
+        raise Exception("Sorry, snapshot {} does not exist!".format(snapshot_path))
 
     layer_dict = {name: param for name, param in model.named_parameters()}
     layer = layer_dict[layer_name]
@@ -111,28 +107,26 @@ def plot_filters(save_path, snapshot_path, layer_name, rgb):
         plot_filters_bw(save_path, tensor, title=layer_name)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--save_path',
+        "--save_path", type=str, required=True, help="Path where the plot will be saved"
+    )
+    parser.add_argument(
+        "--snapshot_path", type=str, required=True, help="Path to a model snapshot"
+    )
+    parser.add_argument(
+        "--layer_name",
         type=str,
         required=True,
-        help='Path where the plot will be saved')
+        help='The name of the layer with filters to plot, ex. "conv1.weight"',
+    )
     parser.add_argument(
-        '--snapshot_path',
-        type=str,
-        required=True,
-        help='Path to a model snapshot')
-    parser.add_argument(
-        '--layer_name',
-        type=str,
-        required=True,
-        help='The name of the layer with filters to plot, ex. "conv1.weight"')
-    parser.add_argument(
-        '--rgb',
-        action='store_true',
+        "--rgb",
+        action="store_true",
         default=False,
-        help='True to plot 3-channel filters in color (RGB)')
+        help="True to plot 3-channel filters in color (RGB)",
+    )
     args = parser.parse_args()
 
     plot_filters(args.save_path, args.snapshot_path, args.layer_name, args.rgb)

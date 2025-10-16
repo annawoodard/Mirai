@@ -8,11 +8,17 @@ try:
     from lifelines.utils.btree import _BTree
     from lifelines import KaplanMeierFitter
 except ImportError:
-    print(f"lifelines package not found. Please install lifelines package to use this module.")
+    print(
+        "lifelines package not found. Please install lifelines package to use this module."
+    )
+
 
 def get_censoring_dist(train_dataset):
     _dataset = train_dataset.dataset
-    times, event_observed = [d['time_at_event'] for d in _dataset], [d['y'] for d in _dataset]
+    times, event_observed = (
+        [d["time_at_event"] for d in _dataset],
+        [d["y"] for d in _dataset],
+    )
     all_observed_times = set(times)
     kmf = KaplanMeierFitter()
     kmf.fit(times, event_observed)
@@ -20,7 +26,10 @@ def get_censoring_dist(train_dataset):
     censoring_dist = {time: kmf.predict(time) for time in all_observed_times}
     return censoring_dist
 
-def concordance_index(event_times, predicted_scores, event_observed=None, censoring_dist=None):
+
+def concordance_index(
+    event_times, predicted_scores, event_observed=None, censoring_dist=None
+):
     """
     Calculates the concordance index (C-index) between two series
     of event times. The first is the real survival times from
@@ -69,15 +78,18 @@ def concordance_index(event_times, predicted_scores, event_observed=None, censor
     event_times = np.asarray(event_times, dtype=float)
     predicted_scores = 1 - np.asarray(predicted_scores, dtype=float)
 
-
     if event_observed is None:
         event_observed = np.ones(event_times.shape[0], dtype=float)
     else:
         event_observed = np.asarray(event_observed, dtype=float).ravel()
         if event_observed.shape != event_times.shape:
-            raise ValueError("Observed events must be 1-dimensional of same length as event times")
+            raise ValueError(
+                "Observed events must be 1-dimensional of same length as event times"
+            )
 
-    num_correct, num_tied, num_pairs = _concordance_summary_statistics(event_times, predicted_scores, event_observed, censoring_dist)
+    num_correct, num_tied, num_pairs = _concordance_summary_statistics(
+        event_times, predicted_scores, event_observed, censoring_dist
+    )
 
     return _concordance_ratio(num_correct, num_tied, num_pairs)
 
@@ -134,7 +146,6 @@ def _concordance_summary_statistics(
 
     observed_times = set(event_times)
 
-
     died_mask = event_observed.astype(bool)
     # TODO: is event_times already sorted? That would be nice...
     died_truth = event_times[died_mask]
@@ -165,11 +176,23 @@ def _concordance_summary_statistics(
         has_more_censored = censored_ix < len(censored_truth)
         has_more_died = died_ix < len(died_truth)
         # Should we look at some censored indices next, or died indices?
-        if has_more_censored and (not has_more_died or died_truth[died_ix] > censored_truth[censored_ix]):
-            pairs, correct, tied, next_ix, weight = _handle_pairs(censored_truth, censored_pred, censored_ix, times_to_compare, censoring_dist)
+        if has_more_censored and (
+            not has_more_died or died_truth[died_ix] > censored_truth[censored_ix]
+        ):
+            pairs, correct, tied, next_ix, weight = _handle_pairs(
+                censored_truth,
+                censored_pred,
+                censored_ix,
+                times_to_compare,
+                censoring_dist,
+            )
             censored_ix = next_ix
-        elif has_more_died and (not has_more_censored or died_truth[died_ix] <= censored_truth[censored_ix]):
-            pairs, correct, tied, next_ix, weight = _handle_pairs(died_truth, died_pred, died_ix, times_to_compare, censoring_dist)
+        elif has_more_died and (
+            not has_more_censored or died_truth[died_ix] <= censored_truth[censored_ix]
+        ):
+            pairs, correct, tied, next_ix, weight = _handle_pairs(
+                died_truth, died_pred, died_ix, times_to_compare, censoring_dist
+            )
             for pred in died_pred[died_ix:next_ix]:
                 for time in observed_times:
                     times_to_compare[time].insert(pred[int(time)])
@@ -198,7 +221,7 @@ def _handle_pairs(truth, pred, first_ix, times_to_compare, censoring_dist):
     """
     next_ix = first_ix
     truth_time = truth[first_ix]
-    weight = 1./(censoring_dist[truth_time]**2)
+    weight = 1.0 / (censoring_dist[truth_time] ** 2)
     while next_ix < len(truth) and truth[next_ix] == truth[first_ix]:
         next_ix += 1
     pairs = len(times_to_compare[truth_time]) * (next_ix - first_ix)

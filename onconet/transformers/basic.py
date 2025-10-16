@@ -4,9 +4,9 @@ from onconet.transformers.abstract import Abstract_transformer
 
 
 class ToTensor(Abstract_transformer):
-    '''
+    """
     torchvision.transforms.ToTensor wrapper.
-    '''
+    """
 
     def __init__(self):
         super(ToTensor, self).__init__()
@@ -65,9 +65,9 @@ class Permute3d(Abstract_transformer):
 
 
 class ComposeTrans(Abstract_transformer):
-    '''
+    """
     composes multiple transformers
-    '''
+    """
 
     def __init__(self, transformers):
         super(ComposeTrans, self).__init__()

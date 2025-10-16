@@ -6,21 +6,23 @@ METADATA_FILENAMES = {
     4: "/home/administrator/Mounts/Isilon/metadata/mri_metadata_4years_jun28_2018.json",
     3: "/home/administrator/Mounts/Isilon/metadata/mri_metadata_3years_jun28_2018.json",
     2: "/home/administrator/Mounts/Isilon/metadata/mri_metadata_2years_jun28_2018.json",
-    1: "/home/administrator/Mounts/Isilon/metadata/mri_metadata_1years_jun28_2018.json"
+    1: "/home/administrator/Mounts/Isilon/metadata/mri_metadata_1years_jun28_2018.json",
 }
 
 
 class Abstract_MGH_MRI_Risk_Dataset(Abstract_MGH_MRI_Dataset):
     def __init__(self, args, transformer, split_group):
-        '''
+        """
         params: args - config.
         params: transformer - A transformer object, takes in a PIL image, performs some transforms and returns a Tensor
         params: split_group - ['train'|'dev'|'test'].
 
         constructs: standard pytorch Dataset obj,which can be fed in a DataLoader for batching
-        '''
+        """
         self.metadata_json = METADATA_FILENAMES[self.years]
-        super(Abstract_MGH_MRI_Risk_Dataset, self).__init__(args, transformer, split_group)
+        super(Abstract_MGH_MRI_Risk_Dataset, self).__init__(
+            args, transformer, split_group
+        )
         self.args.num_classes = 2
 
     @property
@@ -28,10 +30,10 @@ class Abstract_MGH_MRI_Risk_Dataset(Abstract_MGH_MRI_Dataset):
         return "{} Years Risk".format(self.years)
 
     def check_label(self, row):
-        return 'label' in row and row['label'] in ['POS', 'NEG']
+        return "label" in row and row["label"] in ["POS", "NEG"]
 
     def get_label(self, row):
-        return row['years_to_cancer'] < self.years
+        return row["years_to_cancer"] < self.years
 
 
 @RegisterDataset("mgh_mri_5_year_risk")

@@ -1,5 +1,8 @@
 from onconet.transformers.basic import ToTensor, ToTensor3d, ToPIL3d, Permute3d
-NON_TRANS_ERR = "Transformer {} not in TRANSFORMER_REGISTRY! Available transformers are {}"
+
+NON_TRANS_ERR = (
+    "Transformer {} not in TRANSFORMER_REGISTRY! Available transformers are {}"
+)
 
 IMAGE_TRANSFORMER_REGISTRY = {}
 TENSOR_TRANSFORMER_REGISTRY = {}
@@ -29,11 +32,13 @@ def RegisterImageTransformer(name):
 
 def get_transformers(image_transformers, tensor_transformers, args):
     transformers = [ToPIL3d()] if args.video else []
-    transformers = _add_transformers(transformers, image_transformers,
-                                     IMAGE_TRANSFORMER_REGISTRY, args)
+    transformers = _add_transformers(
+        transformers, image_transformers, IMAGE_TRANSFORMER_REGISTRY, args
+    )
     transformers.append(ToTensor3d() if args.video else ToTensor())
-    transformers = _add_transformers(transformers, tensor_transformers,
-                                     TENSOR_TRANSFORMER_REGISTRY, args)
+    transformers = _add_transformers(
+        transformers, tensor_transformers, TENSOR_TRANSFORMER_REGISTRY, args
+    )
     if args.video:
         transformers.append(Permute3d())
 
@@ -50,4 +55,3 @@ def _add_transformers(transformers, new_transformers, registry, args):
         transformers.append(registry[name](args, kwargs))
 
     return transformers
-

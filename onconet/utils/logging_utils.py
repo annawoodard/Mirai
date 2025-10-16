@@ -38,6 +38,7 @@ def configure_logger(loglevel=None, logger_name=LOGGER_NAME, logfile=None):
     logger.propagate = False
 
     formatter = _get_formatter(loglevel)
+
     def _prep_handler(handler):
         for ex_handler in logger.handlers:
             if type(ex_handler) == type(handler):
@@ -68,5 +69,3 @@ def get_logger(base_name=LOGGER_NAME):
     if not logger.hasHandlers():
         logger = configure_logger(logger_name=logger_name)
     return logger
-
-
