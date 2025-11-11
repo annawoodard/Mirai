@@ -30,6 +30,12 @@ def parse_transformers(raw_transformers):
     :returns: list of parsed transformers [list of (name,additional_args)]
 
     """
+    if raw_transformers is None:
+        return []
+    if isinstance(raw_transformers, str):
+        # handle case where a single string is passed instead of a list
+        raw_transformers = [raw_transformers]
+    
     transformers = []
     for t in raw_transformers:
         arguments = t.split("/")

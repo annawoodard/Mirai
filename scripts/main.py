@@ -42,6 +42,11 @@ if __name__ == "__main__":
         print("Std: {}".format(args.img_std))
 
     print("\nLoading data-augmentation scheme...")
+    # re-parse transformers after set_args may have overwritten them with raw strings
+    args.image_transformers = parsing.parse_transformers(args.image_transformers)
+    args.tensor_transformers = parsing.parse_transformers(args.tensor_transformers)
+    args.test_image_transformers = parsing.parse_transformers(args.test_image_transformers)
+    args.test_tensor_transformers = parsing.parse_transformers(args.test_tensor_transformers)
     transformers = transformer_factory.get_transformers(
         args.image_transformers, args.tensor_transformers, args
     )

@@ -4,23 +4,86 @@
 
 import numpy as np
 
+LIFELINES_AVAILABLE = False
+_BTree = None
+KaplanMeierFitter = None
+
+# Try importing _BTree
 try:
     from lifelines.utils.btree import _BTree
-    from lifelines import KaplanMeierFitter
-except ImportError:
+except (ImportError, OSError) as e:
+    error_msg = str(e)
+    if "GLIBCXX" in error_msg or "libstdc++" in error_msg:
+        print(f"Warning: GLIBCXX/libstdc++ version issue when importing _BTree: {error_msg}")
+        print("This is a system library compatibility issue, not a missing package issue.")
+        print("The import may work when called directly. Trying lazy import...")
+    else:
+        print(f"Warning: Failed to import _BTree from lifelines.utils.btree: {e}")
+    print("This may cause issues with concordance_index but get_censoring_dist may still work.")
+
+# Try importing KaplanMeierFitter - use lazy import to avoid GLIBCXX issues
+def _import_kaplan_meier_fitter():
+    """Lazy import of KaplanMeierFitter to avoid GLIBCXX issues during module import."""
+    global KaplanMeierFitter, LIFELINES_AVAILABLE
+    if KaplanMeierFitter is not None:
+        return KaplanMeierFitter
+    
+    try:
+        from lifelines import KaplanMeierFitter as KMF
+        KaplanMeierFitter = KMF
+        LIFELINES_AVAILABLE = True
+        return KMF
+    except (ImportError, OSError) as e1:
+        try:
+            # try alternative import path for older versions
+            from lifelines.fitters import KaplanMeierFitter as KMF
+            KaplanMeierFitter = KMF
+            LIFELINES_AVAILABLE = True
+            return KMF
+        except (ImportError, OSError) as e2:
+            error_msg1 = str(e1)
+            error_msg2 = str(e2)
+            if "GLIBCXX" in error_msg1 or "libstdc++" in error_msg1:
+                print(f"Warning: GLIBCXX/libstdc++ version issue: {error_msg1}")
+                print("This is a system library compatibility issue. Trying direct import...")
+                # Try one more time - sometimes it works on second attempt
+                try:
+                    from lifelines import KaplanMeierFitter as KMF
+                    KaplanMeierFitter = KMF
+                    LIFELINES_AVAILABLE = True
+                    return KMF
+                except:
+                    pass
+            print(f"Failed to import KaplanMeierFitter from lifelines: {e1}")
+            print(f"Failed to import KaplanMeierFitter from lifelines.fitters: {e2}")
+            LIFELINES_AVAILABLE = False
+            KaplanMeierFitter = None
+            return None
+
+# Don't import at module level - use lazy import instead
+if not LIFELINES_AVAILABLE:
     print(
-        "lifelines package not found. Please install lifelines package to use this module."
+        "\nlifelines package import will be attempted lazily to avoid GLIBCXX issues."
     )
+    print("If you see GLIBCXX errors, this is a system library compatibility issue.\n")
 
 
 def get_censoring_dist(train_dataset):
+    # Use lazy import to avoid GLIBCXX issues
+    kmf_class = _import_kaplan_meier_fitter()
+    if kmf_class is None:
+        raise ImportError(
+            "lifelines package is required for survival analysis but could not be imported. "
+            "This may be due to a GLIBCXX/libstdc++ version mismatch. "
+            "Try: pip install lifelines==0.24.15 or check your system libraries."
+        )
     _dataset = train_dataset.dataset
     times, event_observed = (
         [d["time_at_event"] for d in _dataset],
         [d["y"] for d in _dataset],
     )
     all_observed_times = set(times)
-    kmf = KaplanMeierFitter()
+    kmf = kmf_class()
     kmf.fit(times, event_observed)
 
     censoring_dist = {time: kmf.predict(time) for time in all_observed_times}
@@ -75,6 +138,13 @@ def concordance_index(
     >>> concordance_index(df['T'], -cph.predict_partial_hazard(df), df['E'])
 
     """
+    # Use lazy import to avoid GLIBCXX issues
+    kmf_class = _import_kaplan_meier_fitter()
+    if kmf_class is None:
+        raise ImportError(
+            "lifelines package is required for survival analysis but could not be imported. "
+            "This may be due to a GLIBCXX/libstdc++ version mismatch."
+        )
     event_times = np.asarray(event_times, dtype=float)
     predicted_scores = 1 - np.asarray(predicted_scores, dtype=float)
 

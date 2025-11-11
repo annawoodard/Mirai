@@ -108,7 +108,17 @@ def predict(
 
     model = MiraiModel(config)
     if dry_run:
-        logger.info(f"Model version: {model.__version__}. Dry run complete.")
+        logger.info(f"Model version: {model.__version__}")
+        logger.info("Model weight locations:")
+        if config.model_name == "mirai_full":
+            logger.info(f"  Image encoder: {config.img_encoder_snapshot} (exists: {os.path.exists(config.img_encoder_snapshot)})")
+            logger.info(f"  Transformer: {config.transformer_snapshot} (exists: {os.path.exists(config.transformer_snapshot)})")
+        else:
+            if hasattr(config, "snapshot") and config.snapshot is not None:
+                logger.info(f"  Snapshot: {config.snapshot} (exists: {os.path.exists(config.snapshot)})")
+        if hasattr(config, "calibrator_path") and config.calibrator_path is not None:
+            logger.info(f"  Calibrator: {config.calibrator_path} (exists: {os.path.exists(config.calibrator_path)})")
+        logger.info("Dry run complete.")
         return
 
     assert len(dicom_files) == 4, "Expected 4 DICOM files, got {}".format(
