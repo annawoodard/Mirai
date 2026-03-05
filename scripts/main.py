@@ -47,8 +47,12 @@ if __name__ == "__main__":
     # re-parse transformers after set_args may have overwritten them with raw strings
     args.image_transformers = parsing.parse_transformers(args.image_transformers)
     args.tensor_transformers = parsing.parse_transformers(args.tensor_transformers)
-    args.test_image_transformers = parsing.parse_transformers(args.test_image_transformers)
-    args.test_tensor_transformers = parsing.parse_transformers(args.test_tensor_transformers)
+    args.test_image_transformers = parsing.parse_transformers(
+        args.test_image_transformers
+    )
+    args.test_tensor_transformers = parsing.parse_transformers(
+        args.test_tensor_transformers
+    )
     transformers = transformer_factory.get_transformers(
         args.image_transformers, args.tensor_transformers, args
     )
@@ -158,9 +162,27 @@ if __name__ == "__main__":
                     raw_val = arr[i]
                     if args.calibrator_snapshot is not None:
                         # Match usage in mirai_full.py: reshape to (-1, 1) and access [1] from flattened result
-                        val = callibrator[i].predict_proba(np.array([[raw_val]])).flatten()[1]
+                        val = (
+                            callibrator[i]
+                            .predict_proba(np.array([[raw_val]]))
+                            .flatten()[1]
+                        )
                     else:
                         val = raw_val
                     export[key] = val
                 writer.writerow(export)
         print("Exported predictions to {}".format(args.prediction_save_path))
+
+    if args.save_hiddens and (args.dev or args.test):
+        from onconet.learn.train import get_hiddens
+
+        dataset = test_data if args.test else dev_data
+        hiddens, paths = get_hiddens(dataset, {"model": model}, args)
+        out_path = args.hiddens_output_path
+        if out_path is None and args.prediction_save_path is not None:
+            out_path = os.path.join(
+                os.path.dirname(args.prediction_save_path), "hiddens.npz"
+            )
+        if out_path is not None:
+            np.savez(out_path, hiddens=hiddens, paths=np.array(paths, dtype=object))
+            print("Saved hiddens (shape {}) to {}".format(hiddens.shape, out_path))

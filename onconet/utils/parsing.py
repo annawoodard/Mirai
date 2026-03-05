@@ -35,7 +35,7 @@ def parse_transformers(raw_transformers):
     if isinstance(raw_transformers, str):
         # handle case where a single string is passed instead of a list
         raw_transformers = [raw_transformers]
-    
+
     transformers = []
     for t in raw_transformers:
         arguments = t.split("/")
@@ -911,6 +911,18 @@ def parse_args():
         type=str,
         default=None,
         help="where to save the predictions for dev and test sets",
+    )
+    parser.add_argument(
+        "--save_hiddens",
+        action="store_true",
+        default=False,
+        help="save transformer hidden vectors during test/dev for downstream PCA/analysis",
+    )
+    parser.add_argument(
+        "--hiddens_output_path",
+        type=str,
+        default=None,
+        help="path for hiddens .npz file (default: <prediction_save_path parent>/hiddens.npz)",
     )
     parser.add_argument(
         "--no_tuning_on_dev",
