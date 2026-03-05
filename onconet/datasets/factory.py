@@ -62,9 +62,16 @@ def get_dataset(args, transformers, test_transformers):
     if args.survival_analysis_setup:
         from onconet.utils.c_index import get_censoring_dist
 
-        args.censoring_distribution = get_censoring_dist(
-            train if len(train) > 0 else test
-        )
+        # Use train dataset if available, otherwise fall back to test or dev
+        dataset_for_censoring = train if len(train) > 0 else (test if len(test) > 0 else dev)
+        if len(dataset_for_censoring) == 0:
+            print(
+                "WARNING: All datasets (train/test/dev) are empty. "
+                "Cannot compute censoring distribution. This may cause errors in survival analysis."
+            )
+            args.censoring_distribution = {}
+        else:
+            args.censoring_distribution = get_censoring_dist(dataset_for_censoring)
     if args.use_precomputed_hiddens:
         train.path_to_hidden_dict = path_to_hidden_dict
         dev.path_to_hidden_dict = path_to_hidden_dict

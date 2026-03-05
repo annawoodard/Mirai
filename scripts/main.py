@@ -1,7 +1,9 @@
 import pickle
 from os.path import dirname, realpath
+import os
 import sys
 import git
+import numpy as np
 
 sys.path.append(dirname(dirname(realpath(__file__))))
 import onconet.datasets.factory as dataset_factory
@@ -136,8 +138,13 @@ if __name__ == "__main__":
             exams.extend(args.test_stats["exams"])
             probs.extend(args.test_stats["probs"])
         legend = ["patient_exam_id"]
-        if args.callibrator_snapshot is not None:
-            callibrator = pickle.load(open(args.callibrator_snapshot, "rb"))
+        if args.calibrator_snapshot is not None:
+            if not os.path.exists(args.calibrator_snapshot):
+                raise FileNotFoundError(
+                    f"Calibrator file not found: {args.calibrator_snapshot}\n"
+                    f"Please check the path or run without --calibrator_snapshot to use raw predictions."
+                )
+            callibrator = pickle.load(open(args.calibrator_snapshot, "rb"))
         for i in range(args.max_followup):
             legend.append("{}_year_risk".format(i + 1))
         export = {}
@@ -149,8 +156,9 @@ if __name__ == "__main__":
                 for i in range(args.max_followup):
                     key = "{}_year_risk".format(i + 1)
                     raw_val = arr[i]
-                    if args.callibrator_snapshot is not None:
-                        val = callibrator[i].predict_proba([[raw_val]])[0, 1]
+                    if args.calibrator_snapshot is not None:
+                        # Match usage in mirai_full.py: reshape to (-1, 1) and access [1] from flattened result
+                        val = callibrator[i].predict_proba(np.array([[raw_val]])).flatten()[1]
                     else:
                         val = raw_val
                     export[key] = val

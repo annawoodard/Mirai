@@ -351,6 +351,12 @@ def eval_model(test_data, models, args):
         args=args,
     )
 
+    if len(golds) == 0 or len(probs) == 0:
+        raise ValueError(
+            f"No samples passed filtering. Dataset is empty after filtering. "
+            f"Check that exams have all required views and pass check_label() filters."
+        )
+
     log_statement, test_stats = compute_eval_metrics(
         args,
         loss,

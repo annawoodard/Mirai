@@ -78,13 +78,33 @@ def get_censoring_dist(train_dataset):
             "Try: pip install lifelines==0.24.15 or check your system libraries."
         )
     _dataset = train_dataset.dataset
+    if len(_dataset) == 0:
+        raise ValueError(
+            "Cannot compute censoring distribution: dataset is empty. "
+            "Check that your CSV has valid rows that pass check_label() filtering."
+        )
     times, event_observed = (
         [d["time_at_event"] for d in _dataset],
         [d["y"] for d in _dataset],
     )
+    
+    # Validate that times are numeric
+    try:
+        times_array = np.array(times, dtype=float)
+    except (ValueError, TypeError) as e:
+        raise ValueError(
+            f"Cannot compute censoring distribution: time_at_event values are not numeric. "
+            f"Sample values: {times[:10]}, Error: {e}"
+        ) from e
+    
+    if len(times) == 0:
+        raise ValueError(
+            "Cannot compute censoring distribution: no time_at_event values extracted from dataset."
+        )
+    
     all_observed_times = set(times)
     kmf = kmf_class()
-    kmf.fit(times, event_observed)
+    kmf.fit(times_array, event_observed)
 
     censoring_dist = {time: kmf.predict(time) for time in all_observed_times}
     return censoring_dist

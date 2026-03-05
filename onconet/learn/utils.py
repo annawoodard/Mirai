@@ -226,6 +226,12 @@ def compute_eval_metrics_survival(
     stats_dict,
     key_prefix,
 ):
+    if len(probs) == 0 or len(golds) == 0:
+        raise ValueError(
+            f"No samples passed filtering. probs={len(probs)}, golds={len(golds)}. "
+            f"Check that exams have all required views and pass check_label() filters."
+        )
+    
     log_statement = (
         "--\n{} - loss: {:.6f} - reg_loss: {:.6f} - adv_loss: {:.6f}".format(
             args.objective, loss, reg_loss, adv_loss
@@ -289,11 +295,31 @@ def compute_auc_metrics_given_curve(
         c_index = "NA"
 
     metrics["c_index"] = c_index
-    end_probs = np.array(probs)[:, -1].tolist()
+    
+    # probs should never be empty at this point due to earlier validation
+    probs_array = np.array(probs)
+    if probs_array.ndim == 1:
+        # Single sample case: probs is a 1D array, take the last element
+        end_probs = [probs_array[-1]]
+    elif probs_array.ndim == 2:
+        # Multiple samples: probs is 2D, take last column
+        end_probs = probs_array[:, -1].tolist()
+    else:
+        # Fallback: try to extract last element from each prob array
+        end_probs = [p[-1] if hasattr(p, '__getitem__') and len(p) > 0 else p for p in probs]
+    
+    if len(end_probs) == 0:
+        raise ValueError(
+            f"Failed to extract end_probs from probs. probs shape: {probs_array.shape if hasattr(probs_array, 'shape') else 'unknown'}"
+        )
+    
     sorted_golds = [g for p, g in sorted(zip(end_probs, golds))]
-    metrics["decile_recall"] = sum(sorted_golds[-len(sorted_golds) // 10 :]) / sum(
-        sorted_golds
-    )
+    if sum(sorted_golds) == 0:
+        metrics["decile_recall"] = np.nan
+    else:
+        metrics["decile_recall"] = sum(sorted_golds[-len(sorted_golds) // 10 :]) / sum(
+            sorted_golds
+        )
     return metrics, sample_sizes
 
 
